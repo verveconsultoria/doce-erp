@@ -273,8 +273,18 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
 <div id="app">
   <!-- DASHBOARD -->
   <div id="page-dashboard" class="page active">
-    <h2 style="margin-bottom:16px;font-size:22px">Painel geral</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <h2 style="font-size:22px">Painel</h2>
+      <button onclick="openMetaConfig()" class="btn-sm" style="font-size:12px">⚙ Definir meta</button>
+    </div>
+
+    <!-- Métricas superiores -->
     <div class="metric-grid" id="metrics"></div>
+
+    <!-- Meta do mês -->
+    <div id="dash-meta-card" class="data-card" style="margin-bottom:16px;display:none">
+      <div id="dash-meta-inner"></div>
+    </div>
 
     <!-- Vendas do período -->
     <div class="data-card" style="margin-bottom:16px">
@@ -282,8 +292,8 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
         <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Vendas</div>
         <div style="display:flex;gap:6px">
           <button onclick="setVendasPeriodo('dia',this)" class="btn-sm" id="vbtn-dia" style="border-radius:99px">Hoje</button>
-          <button onclick="setVendasPeriodo('semana',this)" class="btn-sm active-period" id="vbtn-semana" style="border-radius:99px;background:var(--rosa);color:#fff;border-color:var(--rosa)">Semana</button>
-          <button onclick="setVendasPeriodo('mes',this)" class="btn-sm" id="vbtn-mes" style="border-radius:99px">Mês</button>
+          <button onclick="setVendasPeriodo('semana',this)" class="btn-sm" id="vbtn-semana" style="border-radius:99px">Semana</button>
+          <button onclick="setVendasPeriodo('mes',this)" class="btn-sm" id="vbtn-mes" style="border-radius:99px;background:var(--rosa);color:#fff;border-color:var(--rosa)">Mês</button>
         </div>
       </div>
       <div id="dash-vendas-metricas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px"></div>
@@ -708,6 +718,7 @@ function startAuth(){
       return;
     }
     currentUser=user;
+    loadMeta();
     const av=document.getElementById("user-avatar");
     if(av&&user.photoURL){av.src=user.photoURL;av.style.display="block";}
     document.getElementById("login-screen").style.display="none";
@@ -924,7 +935,7 @@ async function rejectPending(id){
 /* ================================================================
    DASHBOARD — VENDAS
 ================================================================ */
-let vendasPeriodo="semana";
+let vendasPeriodo="mes";
 
 function setVendasPeriodo(p,btn){
   vendasPeriodo=p;
@@ -1055,6 +1066,107 @@ function renderDashVendas(){
     }
   }
 }
+
+/* ================================================================
+   META DO MÊS
+================================================================ */
+let appMeta={faturamento:0,margem:0,precoBoloP:0};
+
+function loadMeta(){
+  try{const saved=localStorage.getItem("crm_meta_mes");if(saved)appMeta=JSON.parse(saved);}catch(e){}
+}
+
+function saveMeta(){localStorage.setItem("crm_meta_mes",JSON.stringify(appMeta));}
+
+function openMetaConfig(){
+  const body=`
+    <div class="info-box" style="margin-bottom:14px">
+      Define a meta mensal para acompanhar no painel. O sistema calcula quantos pedidos faltam para bater a meta.
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Meta de faturamento (R$)</label>
+        <input id="meta-fat" type="number" step="100" value="${appMeta.faturamento||""}" placeholder="Ex: 5000"/></div>
+      <div class="form-group"><label class="form-label">Meta de margem (R$)</label>
+        <input id="meta-mar" type="number" step="100" value="${appMeta.margem||""}" placeholder="Ex: 2000"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Preço médio do Bolo P (para calcular "quantos bolos faltam")</label>
+      <input id="meta-bolo" type="number" step="10" value="${appMeta.precoBoloP||""}" placeholder="Ex: 130"/></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveMetaConfig()">Salvar meta</button>
+    </div>`;
+  document.getElementById("modal-title").textContent="Meta do mês";
+  document.getElementById("modal-body").innerHTML=body;
+  document.getElementById("modal").style.display="flex";
+}
+
+function saveMetaConfig(){
+  appMeta={
+    faturamento:parseFloat(document.getElementById("meta-fat")?.value)||0,
+    margem:parseFloat(document.getElementById("meta-mar")?.value)||0,
+    precoBoloP:parseFloat(document.getElementById("meta-bolo")?.value)||0
+  };
+  saveMeta();
+  closeModal();
+  renderDashboard();
+  showToast("Meta salva!");
+}
+
+function renderMetaCard(totalMes, margemMes, prodVendidos){
+  loadMeta();
+  const card=document.getElementById("dash-meta-card");
+  const inner=document.getElementById("dash-meta-inner");
+  if(!card||!inner)return;
+
+  const temMeta=appMeta.faturamento>0||appMeta.margem>0;
+  if(!temMeta){card.style.display="none";return;}
+  card.style.display="block";
+
+  // Faturamento progress
+  const pctFat=appMeta.faturamento>0?Math.min(Math.round(totalMes/appMeta.faturamento*100),100):null;
+  const pctMar=appMeta.margem>0?Math.min(Math.round(margemMes/appMeta.margem*100),100):null;
+
+  // Quantos bolos faltam
+  const faltaFat=appMeta.faturamento>0?Math.max(appMeta.faturamento-totalMes,0):0;
+  const faltaMar=appMeta.margem>0?Math.max(appMeta.margem-margemMes,0):0;
+  const bolosFat=appMeta.precoBoloP>0&&faltaFat>0?Math.ceil(faltaFat/appMeta.precoBoloP):0;
+  const bolosMar=appMeta.precoBoloP>0&&faltaMar>0?Math.ceil(faltaMar/(appMeta.precoBoloP*0.4)):0; // margem ~40% do bolo P
+
+  const cor=(pct)=>pct===null?"var(--text-muted)":pct>=100?"var(--verde)":pct>=70?"var(--amarelo)":"var(--rosa)";
+
+  inner.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Meta do mês</div>
+      <div style="font-size:11px;color:var(--text-muted)">${new Date().toLocaleString("pt-BR",{month:"long",year:"numeric"})}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      ${appMeta.faturamento>0?`<div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+          <span style="color:var(--text-muted);font-weight:500">Faturamento</span>
+          <span style="color:${cor(pctFat)};font-weight:600">${pctFat}%</span>
+        </div>
+        <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
+          <div style="width:${pctFat}%;height:100%;background:${cor(pctFat)};border-radius:99px;transition:width .5s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">${formatCurrency(totalMes)} <span style="color:var(--text-muted)">/ ${formatCurrency(appMeta.faturamento)}</span></div>
+        ${bolosFat>0?`<div style="font-size:11px;color:var(--rosa);margin-top:3px">🎂 Faltam ~${bolosFat} bolos P</div>`:""}
+      </div>`:""}
+      ${appMeta.margem>0?`<div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+          <span style="color:var(--text-muted);font-weight:500">Margem</span>
+          <span style="color:${cor(pctMar)};font-weight:600">${pctMar}%</span>
+        </div>
+        <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
+          <div style="width:${pctMar}%;height:100%;background:${cor(pctMar)};border-radius:99px;transition:width .5s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">${formatCurrency(margemMes)} <span style="color:var(--text-muted)">/ ${formatCurrency(appMeta.margem)}</span></div>
+        ${bolosMar>0?`<div style="font-size:11px;color:var(--rosa);margin-top:3px">🎂 Faltam ~${bolosMar} bolos P</div>`:""}
+      </div>`:""}
+    </div>
+    ${(pctFat!==null&&pctFat>=100)||(pctMar!==null&&pctMar>=100)?
+      `<div style="text-align:center;font-size:14px;color:var(--verde);font-weight:500">🎉 Meta batida!</div>`:""}`;
+}
+
 function renderDashboard(){
   renderDashVendas();
   const today=new Date();today.setHours(0,0,0,0);
@@ -1069,37 +1181,34 @@ function renderDashboard(){
   const ativos=allClients.filter(c=>c.pipeline==="Cliente ativo").length;
   const novos=allClients.filter(c=>c.criadoEm&&new Date(c.criadoEm).getMonth()===thisMonth).length;
   const m=document.getElementById("metrics");if(!m)return;
-  // Vendas do mês atual
-  const hoje=new Date();
-  const mesStr=hoje.toISOString().slice(0,7);
+  const hoje2=new Date();
+  const mesStr=hoje2.toISOString().slice(0,7);
   const vendasMes=allPedidos.filter(p=>(p.dataPedido||p.criadoEm?.slice(0,10)||"").startsWith(mesStr));
   const totalVendasMes=vendasMes.reduce((s,p)=>s+(p.total||0),0);
+  const custoMes=vendasMes.reduce((s,p)=>s+(p.itens||[]).reduce((ss,i)=>{const sk=allProdutos.find(x=>x.id===i.skuId);return ss+(sk?.custoCalculado?(sk.custoCalculado*(i.qty||1)):(i.subtotal||0)*0.4);},0),0);
+  const margemMes=totalVendasMes>0?totalVendasMes-custoMes:0;
   const prodVendidos=vendasMes.reduce((s,p)=>s+(p.itens||[]).reduce((ss,i)=>ss+(i.qty||1),0),0);
   const estoqueBaixo=allInsumosDash?.filter(i=>i.estoqueMinimo>0&&(i.estoqueAtual||0)<i.estoqueMinimo).length||0;
 
   m.innerHTML=`
-    <div class="metric-card" style="cursor:pointer" onclick="showPage('pedidos',document.querySelector('.nav-tab:nth-child(2)'))">
-      <div class="metric-label">Vendas este mês</div>
-      <div class="metric-value" style="color:var(--rosa);font-size:20px">${formatCurrency(totalVendasMes)}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Produtos vendidos</div>
-      <div class="metric-value" style="color:var(--azul)">${prodVendidos}</div>
-    </div>
     <div class="metric-card" style="cursor:pointer" onclick="showPage('disparos',document.querySelector('.nav-tab:nth-child(6)'))">
       <div class="metric-label">🔥 Leads quentes</div>
       <div class="metric-value" style="color:var(--amarelo)">${upcoming.length}</div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:2px">aniversários e datas em 30 dias</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px">datas em 30 dias</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Clientes ativos</div>
+      <div class="metric-value" style="color:var(--verde)">${ativos}</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${allClients.length} no total</div>
     </div>
     <div class="metric-card" style="cursor:pointer" onclick="window.open('fichas_tecnicas.html','_self')">
       <div class="metric-label">⚠️ Estoque baixo</div>
       <div class="metric-value" style="color:${estoqueBaixo>0?'var(--vermelho)':'var(--verde)'}">${estoqueBaixo}</div>
       <div style="font-size:10px;color:var(--text-muted);margin-top:2px">insumos abaixo do mínimo</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Clientes ativos</div>
-      <div class="metric-value" style="color:var(--verde)">${ativos}</div>
     </div>`;
+
+  // Meta card
+  renderMetaCard(totalVendasMes, margemMes, prodVendidos);
 
   const ul=document.getElementById("upcoming-list");if(!ul)return;
   ul.innerHTML=upcoming.length===0?'<div class="empty">Nenhuma data nos próximos 30 dias</div>':
