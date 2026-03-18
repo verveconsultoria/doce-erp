@@ -1560,7 +1560,7 @@ function openModal(type,id){
     if(type==="client"){const c=allClients.find(x=>x.id===id);if(c){tempOcasioes=JSON.parse(JSON.stringify(c.ocasioes||[]));tempCliProds=JSON.parse(JSON.stringify(c.produtos||[]));}}
     if(type==="empresa"){const e=allEmpresas.find(x=>x.id===id);if(e)tempExposicoes=JSON.parse(JSON.stringify(e.exposicoes||[]));}
   }
-  const titles={client:"Cliente",produto:"Produto",empresa:"Empresa",template:"Modelo de mensagem",categoria:"Categoria",sabor:"Sabor"};
+  const titles={client:"Cliente",produto:"Produto",empresa:"Empresa",template:"Modelo de mensagem",categoria:"Categoria",sabor:"Sabor",exposicao:"Exposição",pedido:"Pedido"};
   document.getElementById("modal-title").textContent=(id?"Editar ":"Novo ")+titles[type];
   document.getElementById("modal-body").innerHTML=buildForm(type,id);
   document.getElementById("modal").style.display="flex";
@@ -2960,9 +2960,12 @@ function buildExposicaoForm(id){
     </div>
     <div class="form-group"><label class="form-label">Observações / logística</label>
       <textarea id="f-ag-obs" rows="2" style="font-family:inherit;font-size:13px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 10px;width:100%;resize:none">${esc(ev?.obs||"")}</textarea></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="closeModal()">Cancelar</button>
-      <button class="btn-primary" onclick="saveExposicao()">Salvar</button>
+    <div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
+      ${id?`<button class="btn-danger" onclick="if(confirm('Excluir esta exposição?')){deleteDoc('agenda','${id}');closeModal()}" style="color:var(--vermelho);border-color:#e8b4b4">🗑 Excluir exposição</button>`:"<span></span>"}
+      <div style="display:flex;gap:8px">
+        <button onclick="closeModal()">Cancelar</button>
+        <button class="btn-primary" onclick="saveExposicao()">Salvar</button>
+      </div>
     </div>`;
 }
 
