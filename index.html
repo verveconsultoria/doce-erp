@@ -965,11 +965,15 @@ function renderDashVendas(){
   const ticket=qty?total/qty:0;
   const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
 
-  // Margem líquida: usa custo dos SKUs quando disponível
+  // Margem líquida: usa custoCalculado real do SKU
   const custoTotal=pedidos.reduce((s,p)=>{
     return s+(p.itens||[]).reduce((ss,i)=>{
       const sku=allProdutos.find(x=>x.id===i.skuId);
-      // custo do SKU não está diretamente no CRM, usa 40% como fallback padrão
+      if(sku?.custoCalculado){
+        // custo real × quantidade
+        return ss+(sku.custoCalculado*(i.qty||1));
+      }
+      // fallback: 40% se custo não disponível
       return ss+(i.subtotal||0)*0.4;
     },0);
   },0);
@@ -2333,7 +2337,11 @@ function renderRelatorios(){
   const ticket=qtd?total/qtd:0;
   const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
   const custoRel=pedidos.reduce((s,p)=>{
-    return s+(p.itens||[]).reduce((ss,i)=>ss+(i.subtotal||0)*0.4,0);
+    return s+(p.itens||[]).reduce((ss,i)=>{
+      const sku=allProdutos.find(x=>x.id===i.skuId);
+      if(sku?.custoCalculado) return ss+(sku.custoCalculado*(i.qty||1));
+      return ss+(i.subtotal||0)*0.4; // fallback 40%
+    },0);
   },0);
   const margemRel=total>0?Math.round((total-custoRel)/total*100):0;
 

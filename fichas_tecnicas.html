@@ -527,7 +527,17 @@ async function saveInsumo(){
       return usaDir||usaEmb||usaBase;
     });
     for(const f of fichasAfetadas)await db.collection("fichas").doc(f.id).update({precisaRevisao:true});
-    if(fichasAfetadas.length>0)showToast(`⚠️ ${fichasAfetadas.length} ficha(s) marcada(s) para revisão de preço`,"warn");
+    if(fichasAfetadas.length>0){
+      showToast(`⚠️ ${fichasAfetadas.length} ficha(s) marcada(s) para revisão de preço`,"warn");
+      // Also update custoCalculado on all SKUs from affected fichas
+      for(const f of fichasAfetadas){
+        const skusAf=allSKUs.filter(s=>s.fichaId===f.id);
+        for(const s of skusAf){
+          const novoCusto=calcCustoFicha(f,s.tamanho);
+          await db.collection("skus").doc(s.id).update({custoCalculado:parseFloat(novoCusto.toFixed(4))});
+        }
+      }
+    }
   }
   closeModal();showToast("Insumo salvo!");
 }
@@ -1176,7 +1186,8 @@ async function gerarSKUs(fichaId){
   for(const t of selecionados){
     const ct=calcCustoFicha(fi,t);
     const pv=fi.precoManual?.[t]||calcPrecoSugerido(ct,mc);
-    await db.collection("skus").add({sku:prefix+"-"+t,nomeComercial:nomeBase+" ("+t+")",fichaId,categoria:fi.categoria||"Outro",tamanho:t,precoVenda:parseFloat(pv.toFixed(2)),encomenda,descricao:desc,ativo:true,adicionaisDisponiveis:fi.adicionais||[],criadoEm:new Date().toISOString()});
+    const custoCalculado=parseFloat(ct.toFixed(4));
+    await db.collection("skus").add({sku:prefix+"-"+t,nomeComercial:nomeBase+" ("+t+")",fichaId,categoria:fi.categoria||"Outro",tamanho:t,precoVenda:parseFloat(pv.toFixed(2)),custoCalculado,encomenda,descricao:desc,ativo:true,adicionaisDisponiveis:fi.adicionais||[],criadoEm:new Date().toISOString()});
     count++;
   }
   closeModal();showToast("✓ "+count+" SKU(s) gerado(s)!");
@@ -1248,7 +1259,8 @@ function updateSKUCost(){const fichaId=v("f-ficha-id"),tamanho=v("f-tamanho"),el
 function updateSKUMC(){const fichaId=v("f-ficha-id"),tamanho=v("f-tamanho"),pv=parseFloat(v("f-preco"))||0,el=document.getElementById("f-sku-mc");if(!el)return;const fi=fichaId?allFichas.find(x=>x.id===fichaId):null;const ct=fi?calcCustoFicha(fi,tamanho):0;if(!ct||!pv){el.textContent="—";el.style.color="var(--text-muted)";return;}const mc=calcMC(pv,ct);el.textContent=mc.toFixed(1)+"%";el.style.color=mc>=(fi?.margemDesejada||40)?"var(--verde)":mc>=20?"var(--amarelo)":"var(--vermelho)";}
 async function saveSKU(){const nomeComercial=v("f-nome-com");if(!nomeComercial)return alert("Informe o nome comercial.");const fichaId=v("f-ficha-id");const fi=fichaId?allFichas.find(x=>x.id===fichaId):null;const tamanho=v("f-tamanho");const fotoInp=document.getElementById("f-foto-url");
   const foto=fotoInp?.dataset?.dataurl||v("f-foto-url")||"";
-  const obj={sku:v("f-sku"),nomeComercial,fichaId:fichaId||"",categoria:v("f-cat"),tamanho,precoVenda:parseFloat(v("f-preco"))||0,encomenda:parseInt(v("f-encomenda"))||48,descricao:v("f-desc"),foto,ativo:document.getElementById("f-ativo")?.checked!==false,adicionaisDisponiveis:fi?.adicionais||[],criadoEm:editingId?(allSKUs.find(x=>x.id===editingId)?.criadoEm||new Date().toISOString()):new Date().toISOString()};if(editingId)await db.collection("skus").doc(editingId).set(obj);else await db.collection("skus").add(obj);closeModal();showToast("SKU salvo!");}
+  const custoCalculado=fi?parseFloat(calcCustoFicha(fi,tamanho).toFixed(4)):0;
+  const obj={sku:v("f-sku"),nomeComercial,fichaId:fichaId||"",categoria:v("f-cat"),tamanho,precoVenda:parseFloat(v("f-preco"))||0,custoCalculado,encomenda:parseInt(v("f-encomenda"))||48,descricao:v("f-desc"),foto,ativo:document.getElementById("f-ativo")?.checked!==false,adicionaisDisponiveis:fi?.adicionais||[],criadoEm:editingId?(allSKUs.find(x=>x.id===editingId)?.criadoEm||new Date().toISOString()):new Date().toISOString()};if(editingId)await db.collection("skus").doc(editingId).set(obj);else await db.collection("skus").add(obj);closeModal();showToast("SKU salvo!");}
 function exportCSVSKUs(){const rows=[["sku","nomeComercial","fichaOrigem","categoria","tamanho","custo","precoVenda","mc","encomendaHoras","ativo","descricao"]];allSKUs.forEach(s=>{const fi=allFichas.find(x=>x.id===s.fichaId);const ct=fi?calcCustoFicha(fi,s.tamanho):0;const mc=ct&&s.precoVenda?calcMC(s.precoVenda,ct).toFixed(1)+"%":"—";rows.push([s.sku||"",s.nomeComercial||"",fi?.nome||"",s.categoria||"",s.tamanho||"",ct.toFixed(2),s.precoVenda||"",mc,s.encomenda||"",s.ativo!==false?"sim":"nao",s.descricao||""]);});dlCSV("produtos_skus.csv",rows);}
 </script>
 </body>
