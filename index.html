@@ -259,6 +259,7 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
     <button class="nav-tab" onclick="showPage('mensagens',this)">Mensagens</button>
     <button class="nav-tab" id="tab-disparos" onclick="showPage('disparos',this)">📤 Disparos <span id="disparos-badge"></span></button>
     <button class="nav-tab" onclick="showPage('pedidos',this)">🛒 Pedidos</button>
+    <button class="nav-tab" onclick="showPage('relatorios',this)">📊 Relatórios</button>
     <button class="nav-tab" onclick="showPage('config',this)">⚙ Config</button>
   </div>
   <div class="nav-right">
@@ -423,6 +424,59 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
         <thead><tr><th>Data</th><th>Cliente</th><th>Produtos</th><th>Total</th><th>Pagamento</th><th>Origem</th><th>Status</th><th>Entrega</th><th></th></tr></thead>
         <tbody id="ped-list"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- RELATÓRIOS -->
+  <div id="page-relatorios" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <h2 style="font-size:22px">Relatórios</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="rel-periodo" onchange="renderRelatorios()" style="max-width:160px">
+          <option value="7">Últimos 7 dias</option>
+          <option value="30" selected>Últimos 30 dias</option>
+          <option value="90">Últimos 90 dias</option>
+          <option value="365">Último ano</option>
+          <option value="custom">Período personalizado</option>
+        </select>
+        <div id="rel-custom" style="display:none;gap:6px;align-items:center">
+          <input type="date" id="rel-de" onchange="renderRelatorios()" style="max-width:140px"/>
+          <span style="color:var(--text-muted);font-size:12px">até</span>
+          <input type="date" id="rel-ate" onchange="renderRelatorios()" style="max-width:140px"/>
+        </div>
+      </div>
+    </div>
+    <!-- Métricas gerais -->
+    <div id="rel-metricas" style="margin-bottom:20px"></div>
+    <!-- Gráfico faturamento -->
+    <div class="data-card" style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:12px">Faturamento por dia</div>
+      <div id="rel-chart-fat" style="height:120px;display:flex;align-items:flex-end;gap:3px;overflow-x:auto"></div>
+    </div>
+    <!-- Grid de relatórios -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="data-card">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Produtos mais vendidos</div>
+        <div id="rel-produtos"></div>
+      </div>
+      <div class="data-card">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Por origem</div>
+        <div id="rel-origens"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="data-card">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Clientes que mais compram</div>
+        <div id="rel-clientes-top"></div>
+      </div>
+      <div class="data-card">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Por exposição / empresa</div>
+        <div id="rel-empresas"></div>
+      </div>
+    </div>
+    <div class="data-card" style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Por forma de pagamento</div>
+      <div id="rel-pagamentos" style="display:flex;gap:10px;flex-wrap:wrap"></div>
     </div>
   </div>
 
@@ -799,6 +853,7 @@ function showPage(id,btn){
   if(id==="config")applyConfig();
   if(id==="disparos")renderDisparos();
   if(id==="pedidos")renderPedidos();
+  if(id==="relatorios"){renderRelatorios();}
 }
 
 /* ================================================================
@@ -2063,6 +2118,144 @@ function exportCSVPedidos(){
   });
   const csv=rows.map(r=>r.map(val=>['"',String(val||"").replace(/"/g,'""'),'"'].join("")).join(",")).join("\n");
   const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);a.download="pedidos.csv";a.click();
+}
+
+/* ================================================================
+   RELATÓRIOS
+================================================================ */
+function getPeriodoDatas(){
+  const periodo=v("rel-periodo");
+  const hoje=new Date();hoje.setHours(23,59,59);
+  let de,ate=hoje.toISOString().slice(0,10);
+  if(periodo==="custom"){
+    de=v("rel-de")||"2000-01-01";
+    ate=v("rel-ate")||ate;
+    document.getElementById("rel-custom").style.display="flex";
+  } else {
+    document.getElementById("rel-custom").style.display="none";
+    const dias=parseInt(periodo)||30;
+    const d=new Date();d.setDate(d.getDate()-dias);
+    de=d.toISOString().slice(0,10);
+  }
+  return{de,ate};
+}
+
+function renderRelatorios(){
+  const{de,ate}=getPeriodoDatas();
+  const pedidos=allPedidos.filter(p=>{
+    const data=p.dataPedido||p.criadoEm?.slice(0,10)||"";
+    return data>=de&&data<=ate;
+  });
+
+  const total=pedidos.reduce((s,p)=>s+(p.total||0),0);
+  const qtd=pedidos.length;
+  const ticket=qtd?total/qtd:0;
+  const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
+
+  // Métricas
+  const m=document.getElementById("rel-metricas");
+  if(m)m.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
+    <div class="metric-card"><div class="metric-label">Faturamento</div><div class="metric-value" style="font-size:22px;color:var(--rosa)">${formatCurrency(total)}</div></div>
+    <div class="metric-card"><div class="metric-label">Pedidos</div><div class="metric-value" style="font-size:22px">${qtd}</div></div>
+    <div class="metric-card"><div class="metric-label">Ticket médio</div><div class="metric-value" style="font-size:22px;color:var(--azul)">${formatCurrency(ticket)}</div></div>
+    <div class="metric-card"><div class="metric-label">Pagos</div><div class="metric-value" style="font-size:22px;color:var(--verde)">${formatCurrency(pagos)}</div></div>
+  </div>`;
+
+  // Chart faturamento por dia
+  const porDia={};
+  pedidos.forEach(p=>{const d=p.dataPedido||p.criadoEm?.slice(0,10)||"";if(d)porDia[d]=(porDia[d]||0)+(p.total||0);});
+  const dias=Object.keys(porDia).sort();
+  const maxVal=Math.max(...Object.values(porDia),1);
+  const chart=document.getElementById("rel-chart-fat");
+  if(chart){
+    chart.innerHTML=dias.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
+      dias.map(d=>{
+        const val=porDia[d];const pct=Math.max(Math.round(val/maxVal*100),2);
+        const label=d.split("-").slice(1).reverse().join("/");
+        return`<div style="flex:1;min-width:20px;display:flex;flex-direction:column;align-items:center;gap:3px" title="${label}: ${formatCurrency(val)}">
+          <div style="font-size:9px;color:var(--text-muted);white-space:nowrap">${formatCurrency(val).replace("R$ ","")}</div>
+          <div style="width:100%;background:var(--rosa);border-radius:3px 3px 0 0;height:${pct}%" title="${label}"></div>
+          <div style="font-size:9px;color:var(--text-muted);transform:rotate(-45deg);white-space:nowrap">${label}</div>
+        </div>`;}).join("");
+  }
+
+  // Produtos mais vendidos
+  const porProd={};
+  pedidos.forEach(p=>(p.itens||[]).forEach(i=>{
+    const k=i.nome||i.sku||"?";
+    if(!porProd[k])porProd[k]={nome:k,qty:0,total:0};
+    porProd[k].qty+=i.qty||1;porProd[k].total+=(i.subtotal||0);
+  }));
+  const topProd=Object.values(porProd).sort((a,b)=>b.total-a.total).slice(0,8);
+  const maxProd=Math.max(...topProd.map(p=>p.total),1);
+  const elProd=document.getElementById("rel-produtos");
+  if(elProd)elProd.innerHTML=topProd.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
+    topProd.map(p=>{const pct=Math.round(p.total/maxProd*100);return`
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
+          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${esc(p.nome)}</span>
+          <span style="color:var(--rosa);font-weight:600">${formatCurrency(p.total)}</span>
+        </div>
+        <div style="height:5px;background:var(--cinza-border);border-radius:99px">
+          <div style="width:${pct}%;height:100%;background:var(--rosa);border-radius:99px"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted)">${p.qty} unidade(s)</div>
+      </div>`;}).join("");
+
+  // Por origem
+  const porOrigem={};
+  pedidos.forEach(p=>{const k=ORIGEM_LABEL[p.origem]||p.origem||"Outro";porOrigem[k]=(porOrigem[k]||0)+(p.total||0);});
+  const maxOrig=Math.max(...Object.values(porOrigem),1);
+  const elOrig=document.getElementById("rel-origens");
+  if(elOrig)elOrig.innerHTML=Object.entries(porOrigem).sort((a,b)=>b[1]-a[1]).length===0?
+    '<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
+    Object.entries(porOrigem).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{const pct=Math.round(v/maxOrig*100);return`
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
+          <span style="font-weight:500">${esc(k)}</span>
+          <span style="color:var(--azul);font-weight:600">${formatCurrency(v)}</span>
+        </div>
+        <div style="height:5px;background:var(--cinza-border);border-radius:99px">
+          <div style="width:${pct}%;height:100%;background:var(--azul);border-radius:99px"></div>
+        </div>
+      </div>`;}).join("");
+
+  // Clientes top
+  const porCli={};
+  pedidos.forEach(p=>{const k=p.clienteNome||"Avulso";if(!porCli[k])porCli[k]={nome:k,pedidos:0,total:0};porCli[k].pedidos++;porCli[k].total+=(p.total||0);});
+  const topCli=Object.values(porCli).filter(c=>c.nome!=="Venda avulsa").sort((a,b)=>b.total-a.total).slice(0,8);
+  const elCli=document.getElementById("rel-clientes-top");
+  if(elCli)elCli.innerHTML=topCli.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
+    topCli.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--cinza-border)">
+      <span style="font-size:12px;color:var(--text-muted);width:16px">${i+1}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.nome)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${c.pedidos} pedido(s)</div>
+      </div>
+      <span style="color:var(--rosa);font-weight:600;font-size:13px;flex-shrink:0">${formatCurrency(c.total)}</span>
+    </div>`).join("");
+
+  // Por empresa/exposição
+  const porEmp={};
+  pedidos.filter(p=>p.empresaNome).forEach(p=>{const k=p.empresaNome;porEmp[k]=(porEmp[k]||0)+(p.total||0);});
+  const elEmp=document.getElementById("rel-empresas");
+  if(elEmp)elEmp.innerHTML=Object.keys(porEmp).length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem vendas em exposições</div>':
+    Object.entries(porEmp).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--cinza-border);font-size:13px">
+        <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${esc(k)}</span>
+        <span style="color:var(--verde);font-weight:600">${formatCurrency(v)}</span>
+      </div>`).join("");
+
+  // Por pagamento
+  const porPagto={};
+  pedidos.forEach(p=>{const k=p.pagamento||"Não informado";porPagto[k]=(porPagto[k]||0)+(p.total||0);});
+  const elPag=document.getElementById("rel-pagamentos");
+  const cores=["var(--rosa)","var(--azul)","var(--verde)","var(--amarelo)","var(--text-muted)"];
+  if(elPag)elPag.innerHTML=Object.entries(porPagto).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>`
+    <div class="metric-card" style="padding:10px 14px;flex:1;min-width:110px;border-top:3px solid ${cores[i%cores.length]}">
+      <div class="metric-label">${esc(k)}</div>
+      <div style="font-size:16px;font-weight:600;color:${cores[i%cores.length]}">${formatCurrency(v)}</div>
+    </div>`).join("");
 }
 /* ================================================================
    INIT

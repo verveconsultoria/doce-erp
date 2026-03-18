@@ -125,14 +125,45 @@ button:active{transform:scale(.97)}
   <div id="header">
     <div>
       <div id="header-title">PDV Exposição</div>
-      <div id="header-sub">Toque para vender</div>
+      <div id="header-sub" id="header-data"></div>
     </div>
     <div id="cart-badge">0</div>
   </div>
 
+  <!-- SESSAO -->
+  <div id="screen-sessao" class="screen active">
+    <div style="text-align:center;padding:20px 0 14px">
+      <div style="font-size:48px;margin-bottom:8px">🎪</div>
+      <h2 style="font-size:22px;color:var(--rosa);margin-bottom:4px">Abrir caixa</h2>
+      <p style="font-size:13px;color:var(--text-muted)">Configure a sessão antes de começar</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Exposição / Empresa</label>
+      <select id="pdv-empresa">
+        <option value="">Carregando...</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data da exposição</label>
+      <input id="pdv-data-sessao" type="date"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Meta de faturamento (opcional)</label>
+      <input id="pdv-meta" type="number" step="0.01" placeholder="R$ 0,00" inputmode="decimal"/>
+    </div>
+    <button class="btn-primary" onclick="abrirSessao()" style="margin-top:4px">Abrir caixa →</button>
+  </div>
+
   <!-- STEP 1: CLIENTE -->
-  <div id="screen-cliente" class="screen active">
-    <div class="section-label" style="margin-top:4px">1 — Identificar cliente</div>
+  <div id="screen-cliente" class="screen">
+    <div id="sessao-banner" style="background:var(--rosa-light);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div id="sessao-empresa-nome" style="font-weight:600;font-size:13px;color:var(--rosa)"></div>
+        <div id="sessao-info" style="font-size:11px;color:var(--text-muted)"></div>
+      </div>
+      <button onclick="confirmarFechamento()" style="font-size:11px;padding:4px 10px;border-radius:99px;border:1px solid var(--rosa);color:var(--rosa);background:transparent;white-space:nowrap">Fechar caixa</button>
+    </div>
+    <div class="section-label">Identificar cliente</div>
     <div class="form-group">
       <label class="form-label">Telefone</label>
       <input id="pdv-tel" type="tel" placeholder="(11) 99999-9999" oninput="onTelChange()" onblur="onTelChange()" maxlength="15" inputmode="numeric"/>
@@ -180,12 +211,20 @@ button:active{transform:scale(.97)}
       <label class="form-label">Observações (opcional)</label>
       <textarea id="pdv-obs" class="obs-input" rows="2" placeholder="Ex: sem glúten, retirar no local..."></textarea>
     </div>
+    <div class="form-group">
+      <label class="form-label">Forma de pagamento</label>
+      <select id="pdv-pagto">
+        <option>Maquininha</option>
+        <option>PIX</option>
+        <option>Dinheiro</option>
+        <option>Transferência</option>
+      </select>
+    </div>
     <div style="background:var(--cinza);border-radius:var(--radius-sm);padding:14px;margin-bottom:20px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:14px;color:var(--text-muted)">Total do pedido</span>
         <span style="font-size:24px;font-weight:700;color:var(--rosa);font-family:'Playfair Display',serif" id="cart-total">R$ 0,00</span>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">💳 Pagamento via maquininha</div>
     </div>
     <button class="btn-success" onclick="confirmarPedido()">✓ Confirmar pedido</button>
     <div style="margin-top:10px">
@@ -197,6 +236,7 @@ button:active{transform:scale(.97)}
   <div id="screen-sucesso" class="screen">
     <div class="sucesso-icon">🎉</div>
     <div class="sucesso-nome" id="suc-nome">Pedido confirmado!</div>
+    <div id="suc-emp" style="font-size:13px;color:var(--text-muted);margin-bottom:8px;display:none"></div>
     <div class="sucesso-total" id="suc-total"></div>
     <div class="sucesso-items" id="suc-items"></div>
     <a id="suc-wa" href="#" target="_blank" class="wa-btn" style="display:none">
@@ -209,6 +249,22 @@ button:active{transform:scale(.97)}
     </div>
   </div>
 
+  <!-- FECHAR CAIXA -->
+  <div id="screen-fechamento" class="screen">
+    <div style="text-align:center;padding:16px 0 12px">
+      <div style="font-size:48px;margin-bottom:8px">📊</div>
+      <h2 style="font-size:22px;color:var(--rosa);margin-bottom:2px">Resumo do caixa</h2>
+      <div id="fech-empresa" style="font-size:13px;color:var(--text-muted)"></div>
+    </div>
+    <div id="fech-metricas" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px"></div>
+    <div id="fech-pagamentos" style="margin-bottom:16px"></div>
+    <div id="fech-meta" style="margin-bottom:16px"></div>
+    <div class="section-label">Pedidos da sessão</div>
+    <div id="fech-pedidos" style="margin-bottom:20px"></div>
+    <button class="btn-primary" onclick="fecharCaixaConfirmar()" style="margin-bottom:10px">✓ Confirmar fechamento</button>
+    <button onclick="showScreen('cliente')" class="btn-outline">← Voltar e continuar vendendo</button>
+  </div>
+
 </div><!-- /main -->
 
 <script>
@@ -219,6 +275,9 @@ let allSKUs=[],allClients=[];
 let cart={};
 let clienteAtual=null;
 let catAtiva="";
+
+// Session state
+let sessaoAtiva=null; // {empresaId, empresaNome, data, meta, pedidosIds:[]}
 
 firebase.initializeApp(FIREBASE_CONFIG);
 db=firebase.firestore();
@@ -242,36 +301,49 @@ function signIn(){
 }
 
 function carregarDados(){
-  document.getElementById("pdv-skus").innerHTML='<div class="empty">⏳ Carregando...</div>';
+  document.getElementById("pdv-skus").innerHTML='<div class="empty">Aguardando...</div>';
 
-  // Carregar config
+  // Set today's date in sessao form
+  const hoje=new Date().toISOString().slice(0,10);
+  const dsEl=document.getElementById("pdv-data-sessao");
+  if(dsEl)dsEl.value=hoje;
+
+  // Config
   db.collection("config").doc("main").get().then(snap=>{
     if(snap.exists){
       appConfig=snap.data();
-      if(appConfig.nome) document.getElementById("header-title").textContent="PDV — "+appConfig.nome;
+      if(appConfig.nome)document.getElementById("header-title").textContent="PDV — "+appConfig.nome;
     }
-  }).catch(e=>console.log("config err:",e.message));
+  }).catch(e=>console.log("config:",e.message));
 
-  // Carregar SKUs
+  // Empresas
+  db.collection("empresas").get().then(snap=>{
+    const empresas=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+    const sel=document.getElementById("pdv-empresa");
+    if(sel){
+      sel.innerHTML='<option value="">Selecionar exposição...</option>'+
+        empresas.map(e=>`<option value="${e.id}">${esc(e.nome)}</option>`).join("");
+    }
+  }).catch(e=>console.warn("empresas:",e.message));
+
+  // SKUs
   db.collection("skus").get().then(snap=>{
-    allSKUs=snap.docs
-      .map(d=>({id:d.id,...d.data()}))
+    allSKUs=snap.docs.map(d=>({id:d.id,...d.data()}))
       .filter(s=>s.ativo!==false)
       .sort((a,b)=>(a.nomeComercial||"").localeCompare(b.nomeComercial||"","pt-BR"));
     renderCatsPDV();
     renderSKUsPDV();
   }).catch(e=>{
-    document.getElementById("pdv-skus").innerHTML='<div class="empty" style="color:var(--rosa)">⚠️ Erro ao carregar produtos: '+e.message+'</div>';
-    console.error("skus err:",e);
+    document.getElementById("pdv-skus").innerHTML=
+      '<div class="empty" style="color:var(--rosa)">Erro ao carregar produtos: '+e.message+'</div>';
   });
 
-  // Carregar clientes
+  // Clients
   db.collection("clients").get().then(snap=>{
-    allClients=snap.docs
-      .map(d=>({id:d.id,...d.data()}))
+    allClients=snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
-    console.log("Clientes:",allClients.length);
-  }).catch(e=>console.warn("clients err:",e.message));
+  }).catch(e=>console.warn("clients:",e.message));
 }
 
 /* ── UTILS ── */
@@ -279,8 +351,8 @@ function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").
 function fmtR(v){return"R$ "+parseFloat(v||0).toFixed(2).replace(".",",")}
 function maskTel(el){
   let v=el.value.replace(/\D/g,"");
-  if(v.length<=2) el.value=v;
-  else if(v.length<=7) el.value="("+v.slice(0,2)+") "+v.slice(2);
+  if(v.length<=2)el.value=v;
+  else if(v.length<=7)el.value="("+v.slice(0,2)+") "+v.slice(2);
   else el.value="("+v.slice(0,2)+") "+v.slice(2,7)+"-"+v.slice(7,11);
 }
 function showToast(msg){
@@ -296,22 +368,160 @@ function showScreen(id){
 function cartTotal(){return Object.values(cart).reduce((s,i)=>s+(i.preco||0)*i.qty,0);}
 function cartCount(){return Object.values(cart).reduce((s,i)=>s+i.qty,0);}
 
+/* ── SESSÃO ── */
+function abrirSessao(){
+  const sel=document.getElementById("pdv-empresa");
+  const empresaId=sel?.value||"";
+  const empresaNome=sel?.options[sel.selectedIndex]?.text||"";
+  const data=document.getElementById("pdv-data-sessao")?.value||new Date().toISOString().slice(0,10);
+  const meta=parseFloat(document.getElementById("pdv-meta")?.value)||0;
+
+  if(!empresaId)return alert("Selecione a exposição antes de abrir o caixa.");
+
+  sessaoAtiva={empresaId,empresaNome,data,meta,pedidosIds:[],totalVendido:0};
+
+  // Update banner
+  const dataFmt=data.split("-").reverse().join("/");
+  document.getElementById("sessao-empresa-nome").textContent=empresaNome;
+  document.getElementById("sessao-info").textContent=dataFmt+(meta?" · Meta: "+fmtR(meta):"")+" · 0 pedidos";
+  document.getElementById("header-title").textContent=empresaNome;
+
+  showScreen("cliente");
+}
+
+function atualizarBannerSessao(){
+  if(!sessaoAtiva)return;
+  const dataFmt=sessaoAtiva.data.split("-").reverse().join("/");
+  const count=sessaoAtiva.pedidosIds.length;
+  const total=sessaoAtiva.totalVendido;
+  document.getElementById("sessao-info").textContent=
+    dataFmt+" · "+count+" pedido(s) · "+fmtR(total)+
+    (sessaoAtiva.meta?" / Meta: "+fmtR(sessaoAtiva.meta):"");
+}
+
+function confirmarFechamento(){
+  if(!sessaoAtiva)return;
+  renderFechamento();
+  showScreen("fechamento");
+}
+
+function renderFechamento(){
+  if(!sessaoAtiva)return;
+  document.getElementById("fech-empresa").textContent=
+    sessaoAtiva.empresaNome+" · "+sessaoAtiva.data.split("-").reverse().join("/");
+
+  // Fetch pedidos da sessão
+  const promises=sessaoAtiva.pedidosIds.map(id=>db.collection("pedidos").doc(id).get());
+  Promise.all(promises).then(snaps=>{
+    const pedidos=snaps.map(s=>({id:s.id,...s.data()}));
+    const total=pedidos.reduce((s,p)=>s+(p.total||0),0);
+    const meta=sessaoAtiva.meta||0;
+    const pct=meta?Math.min(Math.round(total/meta*100),100):null;
+
+    // Metricas
+    document.getElementById("fech-metricas").innerHTML=`
+      <div class="data-card" style="padding:12px;text-align:center">
+        <div class="metric-label">Total vendido</div>
+        <div class="metric-value" style="font-size:22px;color:var(--rosa)">${fmtR(total)}</div>
+      </div>
+      <div class="data-card" style="padding:12px;text-align:center">
+        <div class="metric-label">Pedidos</div>
+        <div class="metric-value" style="font-size:22px">${pedidos.length}</div>
+      </div>
+      <div class="data-card" style="padding:12px;text-align:center">
+        <div class="metric-label">Ticket médio</div>
+        <div class="metric-value" style="font-size:18px;color:var(--azul)">${pedidos.length?fmtR(total/pedidos.length):"—"}</div>
+      </div>
+      <div class="data-card" style="padding:12px;text-align:center">
+        <div class="metric-label">Clientes</div>
+        <div class="metric-value" style="font-size:22px">${new Set(pedidos.map(p=>p.clienteId).filter(Boolean)).size}</div>
+      </div>`;
+
+    // Pagamentos breakdown
+    const pagtos={};
+    pedidos.forEach(p=>{const k=p.pagamento||"Outro";pagtos[k]=(pagtos[k]||0)+(p.total||0);});
+    const pagtoHtml=Object.entries(pagtos).map(([k,v])=>
+      `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cinza-border)">
+        <span style="font-size:13px">${esc(k)}</span>
+        <span style="font-weight:600;color:var(--azul)">${fmtR(v)}</span>
+      </div>`).join("");
+    document.getElementById("fech-pagamentos").innerHTML=
+      `<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">Por forma de pagamento</div>
+      <div class="data-card" style="padding:6px 12px">${pagtoHtml}</div>`;
+
+    // Meta progress
+    if(meta){
+      const cor=pct>=100?"var(--verde)":pct>=70?"var(--amarelo)":"var(--rosa)";
+      document.getElementById("fech-meta").innerHTML=
+        `<div class="data-card" style="padding:12px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:13px;font-weight:500">Meta do dia</span>
+            <span style="font-size:13px;color:${cor};font-weight:600">${pct}% · ${fmtR(total)} / ${fmtR(meta)}</span>
+          </div>
+          <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${cor};border-radius:99px;transition:width .5s"></div>
+          </div>
+        </div>`;
+    } else {
+      document.getElementById("fech-meta").innerHTML="";
+    }
+
+    // Lista de pedidos
+    document.getElementById("fech-pedidos").innerHTML=pedidos.length===0?
+      '<div class="empty">Nenhum pedido nesta sessão</div>':
+      pedidos.map(p=>
+        `<div class="data-card" style="padding:10px 12px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-weight:500;font-size:13px">${esc(p.clienteNome||"Venda avulsa")}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${(p.itens||[]).map(i=>i.qty+"× "+i.nome).join(", ")}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:600;color:var(--rosa)">${fmtR(p.total||0)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${esc(p.pagamento||"")}</div>
+            </div>
+          </div>
+        </div>`).join("");
+  }).catch(e=>console.error("fechamento:",e));
+}
+
+async function fecharCaixaConfirmar(){
+  if(!sessaoAtiva)return;
+  // Save sessao to Firebase
+  try{
+    await db.collection("sessoes").add({
+      empresaId:sessaoAtiva.empresaId,
+      empresaNome:sessaoAtiva.empresaNome,
+      data:sessaoAtiva.data,
+      meta:sessaoAtiva.meta||0,
+      totalVendido:sessaoAtiva.totalVendido,
+      pedidosIds:sessaoAtiva.pedidosIds,
+      fechadoEm:new Date().toISOString(),
+      operador:currentUser?.email||""
+    });
+  }catch(e){console.warn("sessao save:",e);}
+  sessaoAtiva=null;
+  cart={};clienteAtual=null;
+  document.getElementById("pdv-tel").value="";
+  document.getElementById("pdv-nome").value="";
+  document.getElementById("cliente-found").style.display="none";
+  showScreen("sessao");
+  showToast("Caixa fechado! Até a próxima 🎉");
+}
+
 /* ── CLIENTE ── */
 function onTelChange(){
   const tel=document.getElementById("pdv-tel").value;
   maskTel(document.getElementById("pdv-tel"));
   const clean=tel.replace(/\D/g,"");
-  if(clean.length<8){
-    document.getElementById("cliente-found").style.display="none";
-    return;
-  }
+  if(clean.length<8){document.getElementById("cliente-found").style.display="none";return;}
   const found=allClients.find(c=>(c.telefone||"").replace(/\D/g,"")===clean);
   if(found){
     document.getElementById("found-name").textContent=found.nome;
     document.getElementById("cliente-found").style.display="flex";
     document.getElementById("pdv-nome").value=found.nome;
     clienteAtual={id:found.id,nome:found.nome,telefone:tel,isNew:false};
-  } else {
+  }else{
     document.getElementById("cliente-found").style.display="none";
     document.getElementById("pdv-nome").value="";
     clienteAtual=null;
@@ -325,7 +535,7 @@ function goToProdutos(skip){
     if(!nome)return alert("Informe pelo menos o nome do cliente.");
     clienteAtual=clienteAtual||{id:null,nome,telefone:tel,isNew:true};
     clienteAtual.nome=nome;
-  } else {
+  }else{
     clienteAtual={id:null,nome:"Venda avulsa",telefone:"",isNew:false};
   }
   showScreen("produtos");
@@ -338,22 +548,14 @@ function renderCatsPDV(){
     `<button class="cat-btn${(!catAtiva&&c==="Todos")||(catAtiva===c)?" active":""}" onclick="setCat('${c}')">${c}</button>`
   ).join("");
 }
-
-function setCat(cat){
-  catAtiva=cat==="Todos"?"":cat;
-  renderCatsPDV();
-  renderSKUsPDV();
-}
-
+function setCat(cat){catAtiva=cat==="Todos"?"":cat;renderCatsPDV();renderSKUsPDV();}
 function renderSKUsPDV(){
   const q=(document.getElementById("pdv-search")?.value||"").toLowerCase();
   const f=allSKUs.filter(s=>{
     const qm=!q||s.nomeComercial?.toLowerCase().includes(q)||s.sku?.toLowerCase().includes(q);
-    const cm=!catAtiva||s.categoria===catAtiva;
-    return qm&&cm;
+    return qm&&(!catAtiva||s.categoria===catAtiva);
   });
-  const el=document.getElementById("pdv-skus");
-  if(!el)return;
+  const el=document.getElementById("pdv-skus");if(!el)return;
   if(f.length===0){el.innerHTML='<div class="empty">Nenhum produto encontrado</div>';return;}
   el.innerHTML='<div class="sku-grid">'+f.map(s=>{
     const qty=cart[s.id]?.qty||0;
@@ -367,36 +569,26 @@ function renderSKUsPDV(){
   }).join("")+'</div>';
   updateTotalBar();
 }
-
 function addToCart(skuId){
-  const sku=allSKUs.find(s=>s.id===skuId);
-  if(!sku)return;
+  const sku=allSKUs.find(s=>s.id===skuId);if(!sku)return;
   if(!cart[skuId])cart[skuId]={sku,nome:sku.nomeComercial,preco:sku.precoVenda||0,qty:0};
   cart[skuId].qty++;
   renderSKUsPDV();
   showToast(sku.nomeComercial+" adicionado!");
 }
-
 function updateTotalBar(){
   const total=cartTotal(),count=cartCount();
-  const el=document.getElementById("total-val");
-  const btn=document.getElementById("btn-checkout");
+  const el=document.getElementById("total-val");const btn=document.getElementById("btn-checkout");
   if(el)el.textContent=fmtR(total);
   if(btn){btn.disabled=count===0;btn.style.opacity=count===0?"0.5":"1";}
-  const badge=document.getElementById("cart-badge");
-  if(badge)badge.textContent=count;
+  document.getElementById("cart-badge").textContent=count;
 }
 
 /* ── CARRINHO ── */
-function goToCarrinho(){
-  renderCartItems();
-  showScreen("carrinho");
-}
-
+function goToCarrinho(){renderCartItems();showScreen("carrinho");}
 function renderCartItems(){
   const items=Object.values(cart).filter(i=>i.qty>0);
-  const el=document.getElementById("cart-items");
-  const totalEl=document.getElementById("cart-total");
+  const el=document.getElementById("cart-items");const totalEl=document.getElementById("cart-total");
   if(!el)return;
   el.innerHTML=items.length===0?'<div class="empty">Carrinho vazio</div>':
     items.map(i=>`<div class="cart-item">
@@ -412,13 +604,11 @@ function renderCartItems(){
     </div>`).join("");
   if(totalEl)totalEl.textContent=fmtR(cartTotal());
 }
-
 function changeQty(skuId,delta){
   if(!cart[skuId])return;
   cart[skuId].qty=Math.max(0,cart[skuId].qty+delta);
   if(cart[skuId].qty===0)delete cart[skuId];
-  renderCartItems();
-  updateTotalBar();
+  renderCartItems();updateTotalBar();
 }
 
 /* ── CONFIRMAR ── */
@@ -428,19 +618,20 @@ function confirmarPedido(){
   const obs=document.getElementById("pdv-obs")?.value.trim()||"";
   const total=cartTotal();
   const agora=new Date().toISOString();
+  const pagtoEl=document.getElementById("pdv-pagto");
+  const pagamento=pagtoEl?.value||"Maquininha";
 
-  // Salvar cliente novo se necessário
   let clientePromise=Promise.resolve(clienteAtual?.id||null);
-  if(clienteAtual?.isNew && clienteAtual.nome!=="Venda avulsa"){
-    const novo={
-      nome:clienteAtual.nome,telefone:clienteAtual.telefone||"",
-      email:"",aniversario:"",pipeline:"Cliente ativo",
-      preferencias:[],ocasioes:[],produtos:[],
-      indicadoPor:"",empresaId:"",origem:"exposicao",
-      notas:"Cadastrado via PDV exposição.",
-      criadoEm:agora.slice(0,10),msgStatus:{}
-    };
-    clientePromise=db.collection("clients").add(novo).then(ref=>ref.id);
+  if(clienteAtual?.isNew&&clienteAtual.nome!=="Venda avulsa"){
+    const novo={nome:clienteAtual.nome,telefone:clienteAtual.telefone||"",email:"",
+      aniversario:"",pipeline:"Cliente ativo",preferencias:[],ocasioes:[],produtos:[],
+      indicadoPor:"",empresaId:"",origem:"exposicao",notas:"Cadastrado via PDV.",
+      criadoEm:agora.slice(0,10),msgStatus:{}};
+    clientePromise=db.collection("clients").add(novo).then(ref=>{
+      // Add to local list
+      allClients.push({id:ref.id,...novo});
+      return ref.id;
+    });
   }
 
   clientePromise.then(clienteId=>{
@@ -448,18 +639,27 @@ function confirmarPedido(){
       clienteId:clienteId||"",
       clienteNome:clienteAtual?.nome||"Venda avulsa",
       clienteTelefone:clienteAtual?.telefone||"",
+      empresaId:sessaoAtiva?.empresaId||"",
+      empresaNome:sessaoAtiva?.empresaNome||"",
+      sessaoData:sessaoAtiva?.data||agora.slice(0,10),
       itens:items.map(i=>({skuId:i.sku.id,sku:i.sku.sku||"",nome:i.nome,qty:i.qty,precoUnit:i.preco,subtotal:i.preco*i.qty})),
-      total,obs,origem:"exposicao",status:"pago",
-      pagamento:"maquininha",criadoEm:agora,
-      criadoPor:currentUser?.email||""
+      total,obs,origem:"exposicao",status:"pago",pagamento,
+      dataPedido:sessaoAtiva?.data||agora.slice(0,10),
+      criadoEm:agora,criadoPor:currentUser?.email||""
     };
     return db.collection("pedidos").add(pedido);
-  }).then(()=>{
-    // Tela sucesso
+  }).then(ref=>{
+    // Update session
+    if(sessaoAtiva){
+      sessaoAtiva.pedidosIds.push(ref.id);
+      sessaoAtiva.totalVendido=(sessaoAtiva.totalVendido||0)+total;
+      atualizarBannerSessao();
+    }
+    // Success screen
     const nome=(clienteAtual?.nome||"").split(" ")[0]||"";
     document.getElementById("suc-nome").textContent=nome&&nome!=="Venda"?"Obrigada, "+nome+"! 🎉":"Pedido confirmado! 🎉";
     document.getElementById("suc-total").textContent=fmtR(total);
-    document.getElementById("suc-items").innerHTML=items.map(i=>`${i.qty}× ${i.nome}`).join("<br>");
+    document.getElementById("suc-items").innerHTML=items.map(i=>i.qty+"× "+i.nome).join("<br>");
     // WhatsApp
     const tel=(clienteAtual?.telefone||"").replace(/\D/g,"");
     if(tel.length>=10){
@@ -469,11 +669,9 @@ function confirmarPedido(){
       const waBtn=document.getElementById("suc-wa");
       waBtn.href="https://wa.me/55"+tel+"?text="+encodeURIComponent(msg);
       waBtn.style.display="flex";
-    } else {
-      document.getElementById("suc-wa").style.display="none";
-    }
+    }else{document.getElementById("suc-wa").style.display="none";}
     showScreen("sucesso");
-  }).catch(e=>alert("Erro ao salvar: "+e.message));
+  }).catch(e=>alert("Erro: "+e.message));
 }
 
 function novoAtendimento(){
@@ -484,9 +682,7 @@ function novoAtendimento(){
   document.getElementById("cliente-found").style.display="none";
   const ps=document.getElementById("pdv-search");if(ps)ps.value="";
   catAtiva="";
-  renderCatsPDV();
-  renderSKUsPDV();
-  updateTotalBar();
+  renderCatsPDV();renderSKUsPDV();updateTotalBar();
   showScreen("cliente");
 }
 </script>
