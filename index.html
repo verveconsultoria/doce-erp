@@ -302,7 +302,7 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
       </div>
       <div id="dash-vendas-metricas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px"></div>
       <div id="dash-vendas-chart" style="height:80px;display:flex;align-items:flex-end;gap:3px;overflow-x:auto;margin-bottom:10px"></div>
-      <div id="dash-vendas-lista"></div>
+      <div id="dash-proximas-expo"></div>
     </div>
 
     <div class="grid2">
@@ -437,7 +437,13 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
         <button onclick="agendaMes(1)" style="border:none;background:none;font-size:18px;cursor:pointer;padding:4px 8px">›</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">
-        ${["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map(d=>`<div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">${d}</div>`).join("")}
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">Dom</div>
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">Seg</div>
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">Ter</div>
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">Qua</div>
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">Qui</div>
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">Sex</div>
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">Sáb</div>
       </div>
       <div id="agenda-cal" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px"></div>
     </div>
@@ -1080,28 +1086,37 @@ function renderDashVendas(){
     }
   }
 
-  // Lista dos últimos pedidos do período
-  const lista=document.getElementById("dash-vendas-lista");
-  if(lista){
-    const ultimos=pedidos.slice(0,5);
-    if(ultimos.length===0){
-      lista.innerHTML=`<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:10px 0">Nenhum pedido ${label.toLowerCase()}</div>`;
+  // Próximas exposições
+  const expoEl=document.getElementById("dash-proximas-expo");
+  if(expoEl){
+    const hoje2=new Date().toISOString().slice(0,10);
+    const proxExpo=allAgenda
+      .filter(ev=>ev.tipo==="exposicao"&&(ev.dataFim||ev.dataInicio||"")>=hoje2)
+      .sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""))
+      .slice(0,4);
+    if(proxExpo.length===0){
+      expoEl.innerHTML=`<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px 0">Nenhuma exposição agendada — <a href="#" onclick="showPage('agenda',document.querySelector('.nav-tab:nth-child(3))');return false" style="color:var(--azul)">adicionar</a></div>`;
     } else {
-      lista.innerHTML=`<div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:8px">Últimos pedidos</div>`+
-        ultimos.map(p=>{
-          const cor=STATUS_COLORS?.[p.status]||"#888";
-          const itensStr=(p.itens||[]).map(i=>i.qty+"× "+i.nome).join(", ");
-          return`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--cinza-border)">
+      expoEl.innerHTML=`<div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Próximas exposições</div>`+
+        proxExpo.map(ev=>{
+          const isHoje=hoje2>=(ev.dataInicio||"")&&hoje2<=(ev.dataFim||ev.dataInicio||"");
+          const di=(ev.dataInicio||"").split("-").reverse().join("/");
+          const df=ev.dataFim&&ev.dataFim!==ev.dataInicio?(ev.dataFim.split("-").reverse().join("/")):null;
+          const ms=Math.ceil((new Date(ev.dataInicio+"T12:00:00")-new Date())/(1000*60*60*24));
+          const distLabel=isHoje?"Hoje":ms===1?"Amanhã":ms<=0?"Em andamento":"em "+ms+" dias";
+          const distCor=isHoje||ms<=0?"var(--verde)":ms<=7?"var(--amarelo)":"var(--text-muted)";
+          return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--cinza-border)">
             <div style="flex:1;min-width:0">
-              <div style="font-size:13px;font-weight:500">${esc(p.clienteNome||"Venda avulsa")}</div>
-              <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itensStr)}</div>
+              <div style="font-size:13px;font-weight:500">${esc(ev.titulo||ev.empresaNome||"Exposição")}</div>
+              ${ev.empresaNome&&ev.titulo?`<div style="font-size:11px;color:var(--text-muted)">📍 ${esc(ev.empresaNome)}</div>`:""}
+              <div style="font-size:11px;color:var(--text-muted)">📅 ${di}${df?" → "+df:""}</div>
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div style="font-weight:600;color:var(--rosa);font-size:13px">${formatCurrency(p.total||0)}</div>
-              <div style="font-size:10px;padding:1px 6px;border-radius:99px;background:${cor}22;color:${cor}">${esc(p.status||"")}</div>
+              <div style="font-size:12px;font-weight:600;color:${distCor}">${distLabel}</div>
+              ${isHoje||ms<=0?`<a href="pdv.html" style="font-size:11px;background:var(--verde);color:#fff;padding:2px 8px;border-radius:99px;text-decoration:none;margin-top:3px;display:inline-block">🛒 PDV</a>`:""}
             </div>
           </div>`;}).join("")+
-        (pedidos.length>5?`<div style="text-align:center;margin-top:8px"><button onclick="showPage('pedidos',document.querySelector('.nav-tab:nth-child(8)'))" class="btn-sm">Ver todos (${pedidos.length})</button></div>`:"");
+        `<div style="text-align:center;margin-top:8px"><button onclick="showPage('agenda',document.querySelector('.nav-tab:nth-child(3)'))" class="btn-sm" style="font-size:12px">Ver agenda →</button></div>`;
     }
   }
 }
@@ -1118,18 +1133,34 @@ function loadMeta(){
 function saveMeta(){localStorage.setItem("crm_meta_mes",JSON.stringify(appMeta));}
 
 function openMetaConfig(){
+  // Calculate average bolo P price from real SKUs
+  const bolosP=allProdutos.filter(s=>s.tamanho==="P"&&s.precoVenda>0);
+  const precoMedioP=bolosP.length?Math.round(bolosP.reduce((s,b)=>s+b.precoVenda,0)/bolosP.length):0;
+  const custoMedioP=bolosP.length?bolosP.reduce((s,b)=>s+(b.custoCalculado||0),0)/bolosP.length:0;
+  const margemMedioP=precoMedioP-custoMedioP;
+  const margemPct=precoMedioP>0?Math.round(margemMedioP/precoMedioP*100):0;
+
+  // How many bolos P to reach faturamento/margem meta
+  function calcBolos(meta,tipo){
+    if(!meta||!precoMedioP)return"—";
+    if(tipo==="fat")return Math.ceil(meta/precoMedioP);
+    if(tipo==="mar"&&margemMedioP>0)return Math.ceil(meta/margemMedioP);
+    return"—";
+  }
+
   const body=`
     <div class="info-box" style="margin-bottom:14px">
-      Define a meta mensal para acompanhar no painel. O sistema calcula quantos pedidos faltam para bater a meta.
+      ${bolosP.length>0
+        ?`Bolo P médio: <strong>${formatCurrency(precoMedioP)}</strong> (custo ${formatCurrency(custoMedioP)} · margem ${margemPct}%)`
+        :`Cadastre SKUs tamanho P nas Fichas Técnicas para cálculo automático.`}
     </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Meta de faturamento (R$)</label>
-        <input id="meta-fat" type="number" step="100" value="${appMeta.faturamento||""}" placeholder="Ex: 5000"/></div>
-      <div class="form-group"><label class="form-label">Meta de margem (R$)</label>
-        <input id="meta-mar" type="number" step="100" value="${appMeta.margem||""}" placeholder="Ex: 2000"/></div>
+    <div class="form-group"><label class="form-label">Meta de margem líquida (R$) <span style="font-size:11px;color:var(--text-muted)">quanto quer lucrar no mês</span></label>
+      <input id="meta-mar" type="number" step="100" value="${appMeta.margem||""}" placeholder="Ex: 2000" oninput="calcMetaFat()"/>
+      <div id="meta-fat-calc" style="font-size:12px;color:var(--azul);margin-top:4px"></div>
     </div>
-    <div class="form-group"><label class="form-label">Preço médio do Bolo P (para calcular "quantos bolos faltam")</label>
-      <input id="meta-bolo" type="number" step="10" value="${appMeta.precoBoloP||""}" placeholder="Ex: 130"/></div>
+    <div class="form-group"><label class="form-label">Meta de faturamento (R$) <span style="font-size:11px;color:var(--text-muted)">calculada automaticamente ou defina manualmente</span></label>
+      <input id="meta-fat" type="number" step="100" value="${appMeta.faturamento||""}" placeholder="Calculada da margem →"/>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
       <button onclick="closeModal()">Cancelar</button>
       <button class="btn-primary" onclick="saveMetaConfig()">Salvar meta</button>
@@ -1137,13 +1168,36 @@ function openMetaConfig(){
   document.getElementById("modal-title").textContent="Meta do mês";
   document.getElementById("modal-body").innerHTML=body;
   document.getElementById("modal").style.display="flex";
+
+  // Store for calcMetaFat
+  window._metaCalc={precoMedioP,custoMedioP,margemMedioP,margemPct};
+  setTimeout(calcMetaFat,50);
+}
+
+function calcMetaFat(){
+  const meta=parseFloat(document.getElementById("meta-mar")?.value)||0;
+  const{margemMedioP,precoMedioP}=window._metaCalc||{};
+  const calc=document.getElementById("meta-fat-calc");
+  const fatInput=document.getElementById("meta-fat");
+  if(!calc)return;
+  if(!meta){calc.textContent="";return;}
+  if(margemMedioP>0&&precoMedioP>0){
+    const bolos=Math.ceil(meta/margemMedioP);
+    const fatNecessario=Math.round(bolos*precoMedioP);
+    calc.innerHTML=`→ Equivale a ~<strong>${bolos} bolos P</strong> · faturamento necessário: <strong>${formatCurrency(fatNecessario)}</strong>`;
+    if(fatInput&&!fatInput.value)fatInput.value=fatNecessario;
+  } else {
+    calc.textContent="Cadastre SKUs tamanho P para calcular automaticamente.";
+  }
 }
 
 function saveMetaConfig(){
+  const bolosP=allProdutos.filter(s=>s.tamanho==="P"&&s.precoVenda>0);
+  const precoMedioP=bolosP.length?Math.round(bolosP.reduce((s,b)=>s+b.precoVenda,0)/bolosP.length):0;
   appMeta={
     faturamento:parseFloat(document.getElementById("meta-fat")?.value)||0,
     margem:parseFloat(document.getElementById("meta-mar")?.value)||0,
-    precoBoloP:parseFloat(document.getElementById("meta-bolo")?.value)||0
+    precoBoloP:precoMedioP||appMeta.precoBoloP||0
   };
   saveMeta();
   closeModal();
@@ -1179,27 +1233,24 @@ function renderMetaCard(totalMes, margemMes, prodVendidos){
       <div style="font-size:11px;color:var(--text-muted)">${new Date().toLocaleString("pt-BR",{month:"long",year:"numeric"})}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      ${appMeta.faturamento>0?`<div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-          <span style="color:var(--text-muted);font-weight:500">Faturamento</span>
-          <span style="color:${cor(pctFat)};font-weight:600">${pctFat}%</span>
-        </div>
-        <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
-          <div style="width:${pctFat}%;height:100%;background:${cor(pctFat)};border-radius:99px;transition:width .5s"></div>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted)">${formatCurrency(totalMes)} <span style="color:var(--text-muted)">/ ${formatCurrency(appMeta.faturamento)}</span></div>
-        ${bolosFat>0?`<div style="font-size:11px;color:var(--rosa);margin-top:3px">🎂 Faltam ~${bolosFat} bolos P</div>`:""}
-      </div>`:""}
       ${appMeta.margem>0?`<div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-          <span style="color:var(--text-muted);font-weight:500">Margem</span>
-          <span style="color:${cor(pctMar)};font-weight:600">${pctMar}%</span>
+          <span style="color:var(--text-muted);font-weight:500">Margem líquida</span>
+          <span style="color:${cor(pctMar)};font-weight:600">${formatCurrency(margemMes)} / ${formatCurrency(appMeta.margem)}</span>
         </div>
         <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
           <div style="width:${pctMar}%;height:100%;background:${cor(pctMar)};border-radius:99px;transition:width .5s"></div>
         </div>
-        <div style="font-size:11px;color:var(--text-muted)">${formatCurrency(margemMes)} <span style="color:var(--text-muted)">/ ${formatCurrency(appMeta.margem)}</span></div>
-        ${bolosMar>0?`<div style="font-size:11px;color:var(--rosa);margin-top:3px">🎂 Faltam ~${bolosMar} bolos P</div>`:""}
+        ${bolosMar>0?`<div style="font-size:11px;color:var(--rosa);margin-top:3px">🎂 Faltam ~${bolosMar} bolos P para bater a meta</div>`:"<div style='font-size:11px;color:var(--verde);margin-top:3px'>✓ Meta de margem atingida!</div>"}
+      </div>`:""}
+      ${appMeta.faturamento>0?`<div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+          <span style="color:var(--text-muted);font-weight:500">Faturamento</span>
+          <span style="color:${cor(pctFat)};font-weight:600">${formatCurrency(totalMes)} / ${formatCurrency(appMeta.faturamento)}</span>
+        </div>
+        <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
+          <div style="width:${pctFat}%;height:100%;background:${cor(pctFat)};border-radius:99px;transition:width .5s"></div>
+        </div>
       </div>`:""}
     </div>
     ${(pctFat!==null&&pctFat>=100)||(pctMar!==null&&pctMar>=100)?
