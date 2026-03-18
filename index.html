@@ -1260,33 +1260,41 @@ function renderMetaCard(totalMes, margemMes, prodVendidos){
   const cor=(pct)=>pct===null?"var(--text-muted)":pct>=100?"var(--verde)":pct>=70?"var(--amarelo)":"var(--rosa)";
 
   inner.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Meta do mês</div>
       <div style="font-size:11px;color:var(--text-muted)">${new Date().toLocaleString("pt-BR",{month:"long",year:"numeric"})}</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      ${metaMar>0?`<div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-          <span style="color:var(--text-muted);font-weight:500">Margem líquida${metaExpoMar>0?" (inclui "+exposMes.length+" expo)":""}</span>
-          <span style="color:${cor(pctMar)};font-weight:600">${formatCurrency(margemMes)} / ${formatCurrency(metaMar)}</span>
-        </div>
-        <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
-          <div style="width:${pctMar}%;height:100%;background:${cor(pctMar)};border-radius:99px;transition:width .5s"></div>
-        </div>
-        ${bolosMar>0?`<div style="font-size:11px;color:var(--rosa);margin-top:3px">🎂 Faltam ~${bolosMar} bolos P para bater a meta</div>`:"<div style='font-size:11px;color:var(--verde);margin-top:3px'>✓ Meta de margem atingida!</div>"}
-      </div>`:""}
-      ${metaFat>0?`<div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-          <span style="color:var(--text-muted);font-weight:500">Faturamento${metaExpoFat>0?" (inclui "+exposMes.length+" expo)":""}</span>
-          <span style="color:${cor(pctFat)};font-weight:600">${formatCurrency(totalMes)} / ${formatCurrency(metaFat)}</span>
-        </div>
-        <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
-          <div style="width:${pctFat}%;height:100%;background:${cor(pctFat)};border-radius:99px;transition:width .5s"></div>
-        </div>
-      </div>`:""}
-    </div>
-    ${(pctFat!==null&&pctFat>=100)||(pctMar!==null&&pctMar>=100)?
-      `<div style="text-align:center;font-size:14px;color:var(--verde);font-weight:500">🎉 Meta batida!</div>`:""}`;
+    ${metaMar>0?`<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+        <span style="font-size:13px;font-weight:500">Margem líquida${metaExpoMar>0?" · "+exposMes.length+" expo incluída"+(exposMes.length>1?"s":""):""}</span>
+        <span style="font-size:20px;font-weight:700;color:${cor(pctMar)}">${pctMar}%</span>
+      </div>
+      <div style="height:10px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:5px">
+        <div style="width:${pctMar}%;height:100%;background:${cor(pctMar)};border-radius:99px;transition:width .6s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+        <span style="color:var(--text-muted)">${formatCurrency(margemMes)} realizados</span>
+        <span style="color:var(--text-muted)">Meta: ${formatCurrency(metaMar)}</span>
+      </div>
+      <div style="font-size:12px;font-weight:500;color:${pctMar>=100?"var(--verde)":"var(--rosa)"}">
+        ${pctMar>=100?"🎉 Meta de margem atingida!":"🎂 Faltam ~"+bolosMar+" bolos P para bater a meta"}
+      </div>
+    </div>`:""}
+    ${metaFat>0?`<div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+        <span style="font-size:13px;font-weight:500">Faturamento${metaExpoFat>0?" · "+exposMes.length+" expo incluída"+(exposMes.length>1?"s":""):""}</span>
+        <span style="font-size:20px;font-weight:700;color:${cor(pctFat)}">${pctFat}%</span>
+      </div>
+      <div style="height:10px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:5px">
+        <div style="width:${pctFat}%;height:100%;background:${cor(pctFat)};border-radius:99px;transition:width .6s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span style="color:var(--text-muted)">${formatCurrency(totalMes)} realizados</span>
+        <span style="color:var(--text-muted)">Meta: ${formatCurrency(metaFat)}</span>
+      </div>
+      ${pctFat>=100?`<div style="font-size:12px;font-weight:500;color:var(--verde);margin-top:5px">🎉 Faturamento atingido!</div>`:""}
+    </div>`:""}
+  `;
 }
 
 function renderDashboard(){
