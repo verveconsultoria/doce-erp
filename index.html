@@ -258,6 +258,7 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
     <button class="nav-tab" onclick="showPage('empresas',this)">Empresas</button>
     <button class="nav-tab" onclick="showPage('mensagens',this)">Mensagens</button>
     <button class="nav-tab" id="tab-disparos" onclick="showPage('disparos',this)">📤 Disparos <span id="disparos-badge"></span></button>
+    <button class="nav-tab" onclick="showPage('pedidos',this)">🛒 Pedidos</button>
     <button class="nav-tab" onclick="showPage('config',this)">⚙ Config</button>
   </div>
   <div class="nav-right">
@@ -390,6 +391,41 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
     <div id="disp-list"></div>
   </div>
 
+  <!-- PEDIDOS -->
+  <div id="page-pedidos" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Pedidos</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSVPedidos()" style="font-size:12px">⬇ CSV</button>
+        <button class="btn-primary btn-sm" onclick="openModal('pedido')">+ Novo pedido</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input id="ped-search" placeholder="Cliente, produto..." style="max-width:200px" oninput="renderPedidos()"/>
+      <select id="ped-status" onchange="renderPedidos()" style="max-width:150px">
+        <option value="">Todos os status</option>
+        <option>Orçamento</option><option>Confirmado</option><option>Produção</option>
+        <option>Entregue</option><option>Pago</option><option>Cancelado</option>
+      </select>
+      <select id="ped-origem" onchange="renderPedidos()" style="max-width:130px">
+        <option value="">Todas origens</option>
+        <option value="exposicao">Exposição</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="goomer">Goomer</option>
+        <option value="indicacao">Indicação</option>
+        <option value="outro">Outro</option>
+      </select>
+      <input id="ped-data" type="date" onchange="renderPedidos()" style="max-width:150px" title="Filtrar por data"/>
+    </div>
+    <div id="ped-summary" style="margin-bottom:12px"></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Data</th><th>Cliente</th><th>Produtos</th><th>Total</th><th>Pagamento</th><th>Origem</th><th>Status</th><th>Entrega</th><th></th></tr></thead>
+        <tbody id="ped-list"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- CONFIG -->
   <div id="page-config" class="page">
     <h2 style="margin-bottom:16px;font-size:22px">Configurações</h2>
@@ -483,7 +519,7 @@ const DEFAULT_TEMPLATES=[
    STATE
 ================================================================ */
 let db=null,auth=null,currentUser=null,appConfig={};
-let allClients=[],allProdutos=[],allEmpresas=[],allTemplates=[],allCategorias=[],allSabores=[],allPending=[];
+let allClients=[],allProdutos=[],allEmpresas=[],allTemplates=[],allCategorias=[],allPedidos=[],allSabores=[],allPending=[];
 let editingId=null,tempOcasioes=[],tempExposicoes=[],tempCliProds=[];
 const isFormMode=new URLSearchParams(location.search).get("form")==="1";
 
@@ -641,6 +677,10 @@ function startListeners(){
     allProdutos=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderProdutos();populateProdCatFilter();
   });
+  db.collection("pedidos").orderBy("criadoEm","desc").onSnapshot(snap=>{
+    allPedidos=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderPedidos();
+  });
   db.collection("empresas").orderBy("nome").onSnapshot(snap=>{
     allEmpresas=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderEmpresas();
@@ -758,6 +798,7 @@ function showPage(id,btn){
   if(btn)btn.classList.add("active");
   if(id==="config")applyConfig();
   if(id==="disparos")renderDisparos();
+  if(id==="pedidos")renderPedidos();
 }
 
 /* ================================================================
@@ -913,6 +954,7 @@ function renderClientCard(c){
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         <span class="badge" style="background:${pc}22;color:${pc}">${c.pipeline}</span>
         <button class="btn-sm" onclick="openModal('client','${c.id}')">Editar</button>
+        <button class="btn-sm" onclick="verHistoricoCliente('${c.id}','${esc(c.nome)}')" title="Histórico de pedidos">🛒 Pedidos</button>
         <button class="btn-sm btn-danger" onclick="deleteDoc('clients','${c.id}')">✕</button>
       </div>
     </div>${extras}
@@ -1047,6 +1089,7 @@ function buildForm(type,id){
   if(type==="produto")return buildProdutoForm(id);
   if(type==="empresa")return buildEmpresaForm(id);
   if(type==="template")return buildTemplateForm(id);
+  if(type==="pedido"){tempPedidoItens=editingId?(allPedidos.find(p=>p.id===editingId)?.itens||[]):[];return buildPedidoForm(id);}
   if(type==="categoria")return`<div class="form-group"><label class="form-label">Nome</label><input id="f-cat"/></div><div style="text-align:right"><button class="btn-primary" onclick="saveCategoria()">Salvar</button></div>`;
   if(type==="sabor")return`<div class="form-group"><label class="form-label">Nome</label><input id="f-sabor"/></div><div style="text-align:right"><button class="btn-primary" onclick="saveSabor()">Salvar</button></div>`;
   return"";
@@ -1788,6 +1831,238 @@ function updateDisparosBadge(){
   const pending=buildDispatchList().filter(e=>!e.sent).length;
   const badge=document.getElementById("disparos-badge");
   if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
+}
+
+/* ================================================================
+   PEDIDOS
+================================================================ */
+const STATUS_PEDIDO=["Orçamento","Confirmado","Produção","Entregue","Pago","Cancelado"];
+const STATUS_COLORS={"Orçamento":"#7a7572","Confirmado":"#1a73e8","Produção":"#c8820a","Entregue":"#3a7d5a","Pago":"#3a7d5a","Cancelado":"#c0392b"};
+const ORIGEM_LABEL={exposicao:"Exposição",whatsapp:"WhatsApp",goomer:"Goomer",indicacao:"Indicação",outro:"Outro"};
+const PAGTO_OPTS=["Maquininha","PIX","Dinheiro","Transferência","Outro"];
+
+function renderPedidos(){
+  const q=(v("ped-search")||"").toLowerCase();
+  const st=v("ped-status");
+  const orig=v("ped-origem");
+  const data=v("ped-data");
+
+  const f=allPedidos.filter(p=>{
+    const qm=!q||(p.clienteNome||"").toLowerCase().includes(q)||(p.itens||[]).some(i=>i.nome?.toLowerCase().includes(q));
+    const sm=!st||p.status===st;
+    const om=!orig||p.origem===orig;
+    const dm=!data||p.dataPedido===data||p.criadoEm?.slice(0,10)===data;
+    return qm&&sm&&om&&dm;
+  });
+
+  // Summary
+  const total=f.reduce((s,p)=>s+(p.total||0),0);
+  const pagos=f.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
+  const summary=document.getElementById("ped-summary");
+  if(summary)summary.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div class="metric-card" style="padding:8px 14px;flex:1;min-width:100px"><div class="metric-label">Pedidos</div><div class="metric-value" style="font-size:20px">${f.length}</div></div>
+    <div class="metric-card" style="padding:8px 14px;flex:1;min-width:100px"><div class="metric-label">Total</div><div class="metric-value" style="font-size:20px;color:var(--rosa)">${formatCurrency(total)}</div></div>
+    <div class="metric-card" style="padding:8px 14px;flex:1;min-width:100px"><div class="metric-label">Pagos</div><div class="metric-value" style="font-size:20px;color:var(--verde)">${formatCurrency(pagos)}</div></div>
+  </div>`;
+
+  const tb=document.getElementById("ped-list");if(!tb)return;
+  tb.innerHTML=f.length===0?`<tr><td colspan="9" class="empty">Nenhum pedido encontrado</td></tr>`:
+    f.map(p=>{
+      const cor=STATUS_COLORS[p.status]||"#888";
+      const itensStr=(p.itens||[]).map(i=>`${i.qty}× ${i.nome}`).join(", ");
+      const cliente=allClients.find(c=>c.id===p.clienteId);
+      return`<tr>
+        <td style="white-space:nowrap;font-size:12px">${fmtDate(p.dataPedido||p.criadoEm?.slice(0,10))}</td>
+        <td>
+          <div style="font-weight:500">${esc(p.clienteNome||"—")}</div>
+          ${p.empresaNome?`<div style="font-size:11px;color:var(--text-muted)">${esc(p.empresaNome)}</div>`:""}
+        </td>
+        <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(itensStr)}">${esc(itensStr)||"—"}</td>
+        <td style="font-weight:500;color:var(--rosa);white-space:nowrap">${formatCurrency(p.total||0)}</td>
+        <td style="font-size:12px">${esc(p.pagamento||"—")}</td>
+        <td><span class="tag">${esc(ORIGEM_LABEL[p.origem]||p.origem||"—")}</span></td>
+        <td><span class="badge" style="background:${cor}22;color:${cor}">${esc(p.status||"—")}</span></td>
+        <td style="font-size:12px;white-space:nowrap">${p.dataEntrega?fmtDate(p.dataEntrega):"—"}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm" onclick="openModal('pedido','${p.id}')">Editar</button>
+          <button class="btn-sm btn-danger" onclick="deleteDoc('pedidos','${p.id}')">✕</button>
+        </td>
+      </tr>`;}).join("");
+}
+
+function verHistoricoCliente(clienteId, clienteNome){
+  const pedidos=allPedidos.filter(p=>p.clienteId===clienteId)
+    .sort((a,b)=>(b.dataPedido||b.criadoEm||"").localeCompare(a.dataPedido||a.criadoEm||""));
+  const total=pedidos.reduce((s,p)=>s+(p.total||0),0);
+  const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
+  const body=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="metric-card" style="padding:10px 12px">
+        <div class="metric-label">Pedidos</div>
+        <div class="metric-value" style="font-size:22px">${pedidos.length}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 12px">
+        <div class="metric-label">Total gasto</div>
+        <div class="metric-value" style="font-size:18px;color:var(--rosa)">${formatCurrency(total)}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 12px">
+        <div class="metric-label">Ticket médio</div>
+        <div class="metric-value" style="font-size:18px;color:var(--azul)">${pedidos.length?formatCurrency(total/pedidos.length):"—"}</div>
+      </div>
+    </div>
+    ${pedidos.length===0?`<div class="empty">Nenhum pedido registrado para este cliente.</div>
+      <div style="margin-top:12px;text-align:center"><button class="btn-primary btn-sm" onclick="closeModal();openModal('pedido')">+ Novo pedido</button></div>`
+    :pedidos.map(p=>{
+      const cor=STATUS_COLORS[p.status]||"#888";
+      const itensStr=(p.itens||[]).map(i=>i.qty+"× "+i.nome).join(", ");
+      return`<div class="data-card" style="margin-bottom:8px;padding:10px 13px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text-muted)">${fmtDate(p.dataPedido||p.criadoEm?.slice(0,10))}</span>
+          <span class="badge" style="background:${cor}22;color:${cor}">${esc(p.status||"")}</span>
+          <span class="tag">${esc(ORIGEM_LABEL[p.origem]||p.origem||"")}</span>
+          <span style="margin-left:auto;font-weight:600;color:var(--rosa)">${formatCurrency(p.total||0)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(itensStr)||"Sem produtos"}</div>
+        ${p.dataEntrega?`<div style="font-size:12px;color:var(--azul)">📦 Entrega: ${fmtDate(p.dataEntrega)}</div>`:""}
+        ${p.obs?`<div style="font-size:12px;color:var(--text-muted);margin-top:2px">💬 ${esc(p.obs)}</div>`:""}
+        <div style="margin-top:8px;display:flex;gap:6px">
+          <button class="btn-sm" onclick="closeModal();openModal('pedido','${p.id}')">Editar</button>
+        </div>
+      </div>`;}).join("")}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button onclick="closeModal()">Fechar</button>
+      <button class="btn-primary btn-sm" onclick="closeModal();openModal('pedido')">+ Novo pedido</button>
+    </div>`;
+  document.getElementById("modal-title").textContent="Histórico — "+clienteNome;
+  document.getElementById("modal-body").innerHTML=body;
+  document.getElementById("modal").style.display="flex";
+}
+
+function fmtDate(d){
+  if(!d)return"—";
+  if(d.includes("-"))return d.split("-").reverse().join("/");
+  return d;
+}
+function formatCurrency(v){if(!v&&v!==0)return"—";return"R$ "+parseFloat(v).toFixed(2).replace(".",",");}
+
+function buildPedidoForm(id){
+  const p=id?allPedidos.find(x=>x.id===id):null;
+  const statusOpts=STATUS_PEDIDO.map(s=>`<option${p?.status===s?" selected":""}>${s}</option>`).join("");
+  const pagtoOpts=PAGTO_OPTS.map(s=>`<option${p?.pagamento===s?" selected":""}>${s}</option>`).join("");
+  const cliOpts=`<option value="">Selecionar cliente...</option>`+
+    [...allClients].sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"))
+    .map(c=>`<option value="${c.id}"${p?.clienteId===c.id?" selected":""}>${esc(c.nome)} ${c.telefone?("· "+c.telefone):""}</option>`).join("");
+  const origemOpts=Object.entries(ORIGEM_LABEL).map(([v,l])=>`<option value="${v}"${p?.origem===v?" selected":""}>${l}</option>`).join("");
+  const skuOpts=`<option value="">Selecionar SKU...</option>`+
+    allProdutos.filter(s=>s.ativo!==false)
+    .map(s=>`<option value="${s.id}" data-preco="${s.precoVenda||0}">${esc(s.sku||"")} — ${esc(s.nomeComercial||"")} (${esc(s.tamanho||"")})</option>`).join("");
+
+  // Build itens list
+  const itens=p?.itens||[];
+
+  return`
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Cliente <span class="req">*</span></label>
+        <select id="f-ped-cli">${cliOpts}</select></div>
+      <div class="form-group"><label class="form-label">Status</label>
+        <select id="f-ped-status">${statusOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Data do pedido</label>
+        <input id="f-ped-data" type="date" value="${p?.dataPedido||new Date().toISOString().slice(0,10)}"/></div>
+      <div class="form-group"><label class="form-label">Data de entrega</label>
+        <input id="f-ped-entrega" type="date" value="${p?.dataEntrega||""}"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Origem</label>
+        <select id="f-ped-origem">${origemOpts}</select></div>
+      <div class="form-group"><label class="form-label">Pagamento</label>
+        <select id="f-ped-pagto">${pagtoOpts}</select></div>
+    </div>
+    <hr class="divider"/>
+    <div class="section-title">Produtos</div>
+    <div id="f-ped-itens">${renderPedidoItens(itens)}</div>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:2;min-width:160px"><select id="f-ped-sku">${skuOpts}</select></div>
+      <div style="flex:1;min-width:70px"><input id="f-ped-qty" type="number" min="1" value="1" placeholder="Qtd"/></div>
+      <button type="button" onclick="addPedidoItem()">+ Add</button>
+    </div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 14px;margin-top:10px;display:flex;justify-content:space-between">
+      <span style="font-size:13px;color:var(--text-muted)">Total</span>
+      <span id="f-ped-total" style="font-size:18px;font-weight:600;color:var(--rosa);font-family:'Playfair Display',serif">${formatCurrency(p?.total||0)}</span>
+    </div>
+    <div class="form-group" style="margin-top:12px"><label class="form-label">Observações</label>
+      <textarea id="f-ped-obs" rows="2" style="font-family:inherit;font-size:13px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 10px;width:100%;resize:none;outline:none">${esc(p?.obs||"")}</textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="savePedido()">Salvar pedido</button>
+    </div>`;
+}
+
+// Temp itens for form
+let tempPedidoItens=[];
+function renderPedidoItens(itens){
+  tempPedidoItens=[...itens];
+  if(!itens.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhum produto adicionado.</div>`;
+  return itens.map((i,idx)=>`<div class="item-row">
+    <div style="flex:1;font-size:13px"><strong>${esc(i.nome||i.sku||"")}</strong> · ${i.qty}× · <span style="color:var(--rosa)">${formatCurrency(i.subtotal)}</span></div>
+    <button type="button" class="btn-sm btn-danger" onclick="removePedidoItem(${idx})">✕</button>
+  </div>`).join("");
+}
+function addPedidoItem(){
+  const sel=document.getElementById("f-ped-sku");
+  const qty=parseInt(document.getElementById("f-ped-qty")?.value)||1;
+  if(!sel?.value)return alert("Selecione um SKU.");
+  const opt=sel.options[sel.selectedIndex];
+  const preco=parseFloat(opt.dataset.preco)||0;
+  const sku=allProdutos.find(s=>s.id===sel.value);
+  tempPedidoItens.push({skuId:sel.value,sku:sku?.sku||"",nome:sku?.nomeComercial||opt.text,qty,precoUnit:preco,subtotal:preco*qty});
+  document.getElementById("f-ped-itens").innerHTML=renderPedidoItens(tempPedidoItens);
+  updatePedidoTotal();
+}
+function removePedidoItem(idx){
+  tempPedidoItens.splice(idx,1);
+  document.getElementById("f-ped-itens").innerHTML=renderPedidoItens(tempPedidoItens);
+  updatePedidoTotal();
+}
+function updatePedidoTotal(){
+  const total=tempPedidoItens.reduce((s,i)=>s+i.subtotal,0);
+  const el=document.getElementById("f-ped-total");
+  if(el)el.textContent=formatCurrency(total);
+}
+async function savePedido(){
+  const clienteId=v("f-ped-cli");
+  if(!clienteId)return alert("Selecione um cliente.");
+  const cliente=allClients.find(c=>c.id===clienteId);
+  const total=tempPedidoItens.reduce((s,i)=>s+i.subtotal,0);
+  const obj={
+    clienteId,
+    clienteNome:cliente?.nome||"",
+    clienteTelefone:cliente?.telefone||"",
+    status:v("f-ped-status")||"Orçamento",
+    dataPedido:v("f-ped-data")||new Date().toISOString().slice(0,10),
+    dataEntrega:v("f-ped-entrega")||"",
+    origem:v("f-ped-origem")||"outro",
+    pagamento:v("f-ped-pagto")||"",
+    itens:[...tempPedidoItens],
+    total,
+    obs:document.getElementById("f-ped-obs")?.value||"",
+    criadoEm:editingId?(allPedidos.find(p=>p.id===editingId)?.criadoEm||new Date().toISOString()):new Date().toISOString(),
+    atualizadoEm:new Date().toISOString()
+  };
+  if(editingId)await db.collection("pedidos").doc(editingId).set(obj);
+  else await db.collection("pedidos").add(obj);
+  closeModal();showToast("Pedido salvo!");
+}
+
+function exportCSVPedidos(){
+  const rows=[["data","cliente","telefone","produtos","total","pagamento","origem","status","dataEntrega","obs"]];
+  allPedidos.forEach(p=>{
+    const itensStr=(p.itens||[]).map(i=>`${i.qty}x ${i.nome}`).join(" | ");
+    rows.push([p.dataPedido||p.criadoEm?.slice(0,10)||"",p.clienteNome||"",p.clienteTelefone||"",itensStr,p.total||0,p.pagamento||"",ORIGEM_LABEL[p.origem]||p.origem||"",p.status||"",p.dataEntrega||"",p.obs||""]);
+  });
+  const csv=rows.map(r=>r.map(val=>['"',String(val||"").replace(/"/g,'""'),'"'].join("")).join(",")).join("\n");
+  const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);a.download="pedidos.csv";a.click();
 }
 /* ================================================================
    INIT
