@@ -135,7 +135,7 @@ button:active{transform:scale(.97)}
     <div class="section-label" style="margin-top:4px">1 — Identificar cliente</div>
     <div class="form-group">
       <label class="form-label">Telefone</label>
-      <input id="pdv-tel" type="tel" placeholder="(11) 99999-9999" oninput="maskTel(this);buscaCliente(this.value)" onblur="buscaCliente(this.value)" maxlength="15" inputmode="numeric"/>
+      <input id="pdv-tel" type="tel" placeholder="(11) 99999-9999" oninput="onTelChange()" onblur="onTelChange()" maxlength="15" inputmode="numeric"/>
       <div id="cliente-found" style="display:none" class="found-card">
         <div>
           <div class="name" id="found-name"></div>
@@ -216,14 +216,15 @@ const FIREBASE_CONFIG={apiKey:"AIzaSyDdP4UH5_o_gzuYLeVG0ruxkRoeW5aAlxE",authDoma
 
 let db=null,auth=null,currentUser=null,appConfig={};
 let allSKUs=[],allClients=[];
-let cart={}; // {skuId: {sku, qty}}
-let clienteAtual=null; // {id, nome, telefone, isNew}
+let cart={};
+let clienteAtual=null;
 let catAtiva="";
 
 firebase.initializeApp(FIREBASE_CONFIG);
-db=firebase.firestore();auth=firebase.auth();
+db=firebase.firestore();
+auth=firebase.auth();
 
-auth.onAuthStateChanged(async user=>{
+auth.onAuthStateChanged(user=>{
   if(!user){
     document.getElementById("screen-login").style.display="flex";
     document.getElementById("main").style.display="none";
@@ -232,71 +233,87 @@ auth.onAuthStateChanged(async user=>{
   currentUser=user;
   document.getElementById("screen-login").style.display="none";
   document.getElementById("main").style.display="block";
-  loadData();
+  carregarDados();
 });
 
-function signIn(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>document.getElementById("login-err").textContent=e.message);}
+function signIn(){
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(e=>{document.getElementById("login-err").textContent=e.message;});
+}
 
-async function loadData(){
-  // Show loading
-  document.getElementById("pdv-skus").innerHTML=`<div class="empty" style="padding:40px 0">⏳ Carregando produtos...</div>`;
+function carregarDados(){
+  document.getElementById("pdv-skus").innerHTML='<div class="empty">⏳ Carregando...</div>';
 
-  // Load config first (public read)
-  try{
-    const cfgSnap=await db.collection("config").doc("main").get();
-    if(cfgSnap.exists){appConfig=cfgSnap.data();if(appConfig.nome)document.getElementById("header-title").textContent="PDV — "+appConfig.nome;}
-  }catch(e){console.warn("Config:",e.message);}
+  // Carregar config
+  db.collection("config").doc("main").get().then(snap=>{
+    if(snap.exists){
+      appConfig=snap.data();
+      if(appConfig.nome) document.getElementById("header-title").textContent="PDV — "+appConfig.nome;
+    }
+  }).catch(e=>console.log("config err:",e.message));
 
-  // Load SKUs
-  try{
-    const skuSnap=await db.collection("skus").get();
-    allSKUs=skuSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.ativo!==false).sort((a,b)=>(a.nomeComercial||"").localeCompare(b.nomeComercial||"","pt-BR"));
-    console.log("SKUs carregados:",allSKUs.length);
-  }catch(e){
-    console.error("Erro SKUs:",e.message);
-    document.getElementById("pdv-skus").innerHTML=`<div class="empty" style="color:var(--rosa)">⚠️ Sem permissão para carregar produtos.<br/><small>Verifique se seu e-mail está autorizado no CRM.</small></div>`;
-    return;
-  }
+  // Carregar SKUs
+  db.collection("skus").get().then(snap=>{
+    allSKUs=snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(s=>s.ativo!==false)
+      .sort((a,b)=>(a.nomeComercial||"").localeCompare(b.nomeComercial||"","pt-BR"));
+    renderCatsPDV();
+    renderSKUsPDV();
+  }).catch(e=>{
+    document.getElementById("pdv-skus").innerHTML='<div class="empty" style="color:var(--rosa)">⚠️ Erro ao carregar produtos: '+e.message+'</div>';
+    console.error("skus err:",e);
+  });
 
-  // Load clients
-  try{
-    const cliSnap=await db.collection("clients").get();
-    allClients=cliSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
-    console.log("Clientes carregados:",allClients.length);
-  }catch(e){
-    console.warn("Clientes não carregados:",e.message);
-    // Not fatal - can still sell without client lookup
-  }
-
-  renderCatsPDV();
-  renderSKUsPDV();
+  // Carregar clientes
+  db.collection("clients").get().then(snap=>{
+    allClients=snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+    console.log("Clientes:",allClients.length);
+  }).catch(e=>console.warn("clients err:",e.message));
 }
 
 /* ── UTILS ── */
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
-function fmtCurrency(v){if(!v&&v!==0)return"—";return"R$ "+parseFloat(v).toFixed(2).replace(".",",")}
-function maskTel(el){let v=el.value.replace(/\D/g,"");if(v.length<=2)v=v;else if(v.length<=7)v="("+v.slice(0,2)+") "+v.slice(2);else v="("+v.slice(0,2)+") "+v.slice(2,7)+"-"+v.slice(7,11);el.value=v;}
-function showToast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
-function showScreen(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById("screen-"+id).classList.add("active");window.scrollTo(0,0);}
-function cartTotal(){return Object.values(cart).reduce((s,i)=>s+(i.sku.precoVenda||0)*i.qty,0);}
+function fmtR(v){return"R$ "+parseFloat(v||0).toFixed(2).replace(".",",")}
+function maskTel(el){
+  let v=el.value.replace(/\D/g,"");
+  if(v.length<=2) el.value=v;
+  else if(v.length<=7) el.value="("+v.slice(0,2)+") "+v.slice(2);
+  else el.value="("+v.slice(0,2)+") "+v.slice(2,7)+"-"+v.slice(7,11);
+}
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2500);
+}
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById("screen-"+id).classList.add("active");
+  window.scrollTo(0,0);
+}
+function cartTotal(){return Object.values(cart).reduce((s,i)=>s+(i.preco||0)*i.qty,0);}
 function cartCount(){return Object.values(cart).reduce((s,i)=>s+i.qty,0);}
 
 /* ── CLIENTE ── */
-function buscaCliente(tel){
+function onTelChange(){
+  const tel=document.getElementById("pdv-tel").value;
+  maskTel(document.getElementById("pdv-tel"));
   const clean=tel.replace(/\D/g,"");
-  if(!clean||clean.length<8)return;
-  if(!allClients.length){console.warn("Nenhum cliente carregado ainda");return;}
+  if(clean.length<8){
+    document.getElementById("cliente-found").style.display="none";
+    return;
+  }
   const found=allClients.find(c=>(c.telefone||"").replace(/\D/g,"")===clean);
-  const card=document.getElementById("cliente-found");
-  const nomeEl=document.getElementById("pdv-nome");
-  if(found&&clean.length>=8){
+  if(found){
     document.getElementById("found-name").textContent=found.nome;
-    card.style.display="flex";
-    nomeEl.value=found.nome;
+    document.getElementById("cliente-found").style.display="flex";
+    document.getElementById("pdv-nome").value=found.nome;
     clienteAtual={id:found.id,nome:found.nome,telefone:tel,isNew:false};
-  }else{
-    card.style.display="none";
-    if(nomeEl.value===clienteAtual?.nome)nomeEl.value="";
+  } else {
+    document.getElementById("cliente-found").style.display="none";
+    document.getElementById("pdv-nome").value="";
     clienteAtual=null;
   }
 }
@@ -306,9 +323,9 @@ function goToProdutos(skip){
     const nome=document.getElementById("pdv-nome").value.trim();
     const tel=document.getElementById("pdv-tel").value.trim();
     if(!nome)return alert("Informe pelo menos o nome do cliente.");
-    if(!clienteAtual)clienteAtual={id:null,nome,telefone:tel,isNew:true};
-    else clienteAtual.nome=nome;
-  }else{
+    clienteAtual=clienteAtual||{id:null,nome,telefone:tel,isNew:true};
+    clienteAtual.nome=nome;
+  } else {
     clienteAtual={id:null,nome:"Venda avulsa",telefone:"",isNew:false};
   }
   showScreen("produtos");
@@ -317,10 +334,16 @@ function goToProdutos(skip){
 /* ── PRODUTOS ── */
 function renderCatsPDV(){
   const cats=["Todos",...new Set(allSKUs.map(s=>s.categoria).filter(Boolean))];
-  const el=document.getElementById("pdv-cats");
-  el.innerHTML=cats.map(c=>`<button class="cat-btn${catAtiva===c||(!catAtiva&&c==="Todos")?" active":""}" onclick="setCat('${c}')">${c}</button>`).join("");
+  document.getElementById("pdv-cats").innerHTML=cats.map(c=>
+    `<button class="cat-btn${(!catAtiva&&c==="Todos")||(catAtiva===c)?" active":""}" onclick="setCat('${c}')">${c}</button>`
+  ).join("");
 }
-function setCat(cat){catAtiva=cat==="Todos"?"":cat;renderCatsPDV();renderSKUsPDV();}
+
+function setCat(cat){
+  catAtiva=cat==="Todos"?"":cat;
+  renderCatsPDV();
+  renderSKUsPDV();
+}
 
 function renderSKUsPDV(){
   const q=(document.getElementById("pdv-search")?.value||"").toLowerCase();
@@ -331,22 +354,24 @@ function renderSKUsPDV(){
   });
   const el=document.getElementById("pdv-skus");
   if(!el)return;
-  el.innerHTML=f.length===0?`<div class="empty">Nenhum produto encontrado</div>`:
-    `<div class="sku-grid">${f.map(s=>{
-      const qty=cart[s.id]?.qty||0;
-      return`<div class="sku-card${qty>0?" selected":""}" onclick="addToCart('${s.id}')">
-        ${qty>0?`<div class="sku-qty-badge">${qty}</div>`:""}
-        ${s.foto?`<img src="${esc(s.foto)}" class="thumb" onerror="this.style.display='none'"/>`:`<div class="thumb-ph">🎂</div>`}
-        <div class="sku-nome">${esc(s.nomeComercial||"")}</div>
-        <div class="sku-tam">${esc(s.tamanho||"")} ${s.encomenda?'· '+s.encomenda+'h':''}</div>
-        <div class="sku-preco">${fmtCurrency(s.precoVenda)}</div>
-      </div>`;}).join("")}</div>`;
+  if(f.length===0){el.innerHTML='<div class="empty">Nenhum produto encontrado</div>';return;}
+  el.innerHTML='<div class="sku-grid">'+f.map(s=>{
+    const qty=cart[s.id]?.qty||0;
+    return`<div class="sku-card${qty>0?" selected":""}" onclick="addToCart('${s.id}')">
+      ${qty>0?`<div class="sku-qty-badge">${qty}</div>`:""}
+      ${s.foto?`<img src="${esc(s.foto)}" class="thumb" onerror="this.style.display='none'">`:`<div class="thumb-ph">🎂</div>`}
+      <div class="sku-nome">${esc(s.nomeComercial||"")}</div>
+      <div class="sku-tam">${esc(s.tamanho||"")}${s.encomenda?" · "+s.encomenda+"h":""}</div>
+      <div class="sku-preco">${fmtR(s.precoVenda)}</div>
+    </div>`;
+  }).join("")+'</div>';
   updateTotalBar();
 }
 
 function addToCart(skuId){
-  const sku=allSKUs.find(s=>s.id===skuId);if(!sku)return;
-  if(!cart[skuId])cart[skuId]={sku,qty:0};
+  const sku=allSKUs.find(s=>s.id===skuId);
+  if(!sku)return;
+  if(!cart[skuId])cart[skuId]={sku,nome:sku.nomeComercial,preco:sku.precoVenda||0,qty:0};
   cart[skuId].qty++;
   renderSKUsPDV();
   showToast(sku.nomeComercial+" adicionado!");
@@ -356,7 +381,7 @@ function updateTotalBar(){
   const total=cartTotal(),count=cartCount();
   const el=document.getElementById("total-val");
   const btn=document.getElementById("btn-checkout");
-  if(el)el.textContent=fmtCurrency(total);
+  if(el)el.textContent=fmtR(total);
   if(btn){btn.disabled=count===0;btn.style.opacity=count===0?"0.5":"1";}
   const badge=document.getElementById("cart-badge");
   if(badge)badge.textContent=count;
@@ -373,11 +398,11 @@ function renderCartItems(){
   const el=document.getElementById("cart-items");
   const totalEl=document.getElementById("cart-total");
   if(!el)return;
-  el.innerHTML=items.length===0?`<div class="empty">Carrinho vazio</div>`:
+  el.innerHTML=items.length===0?'<div class="empty">Carrinho vazio</div>':
     items.map(i=>`<div class="cart-item">
       <div class="cart-item-info">
-        <div class="cart-item-nome">${esc(i.sku.nomeComercial||"")}</div>
-        <div class="cart-item-preco">${fmtCurrency(i.sku.precoVenda)} × ${i.qty} = ${fmtCurrency(i.sku.precoVenda*i.qty)}</div>
+        <div class="cart-item-nome">${esc(i.nome||"")}</div>
+        <div class="cart-item-preco">${fmtR(i.preco)} × ${i.qty} = ${fmtR(i.preco*i.qty)}</div>
       </div>
       <div class="qty-ctrl">
         <button class="qty-btn" onclick="changeQty('${i.sku.id}',-1)">−</button>
@@ -385,7 +410,7 @@ function renderCartItems(){
         <button class="qty-btn" onclick="changeQty('${i.sku.id}',1)">+</button>
       </div>
     </div>`).join("");
-  if(totalEl)totalEl.textContent=fmtCurrency(cartTotal());
+  if(totalEl)totalEl.textContent=fmtR(cartTotal());
 }
 
 function changeQty(skuId,delta){
@@ -397,64 +422,58 @@ function changeQty(skuId,delta){
 }
 
 /* ── CONFIRMAR ── */
-async function confirmarPedido(){
+function confirmarPedido(){
   const items=Object.values(cart).filter(i=>i.qty>0);
   if(!items.length)return alert("Carrinho vazio.");
   const obs=document.getElementById("pdv-obs")?.value.trim()||"";
   const total=cartTotal();
-  const agora=new Date();
+  const agora=new Date().toISOString();
 
-  try{
-    // Criar ou atualizar cliente
-    let clienteId=clienteAtual?.id;
-    if(clienteAtual?.isNew&&clienteAtual.nome!=="Venda avulsa"){
-      const novo={nome:clienteAtual.nome,telefone:clienteAtual.telefone||"",email:"",
-        aniversario:"",pipeline:"Cliente ativo",preferencias:[],ocasioes:[],produtos:[],
-        indicadoPor:"",empresaId:"",notas:"Cadastrado via PDV exposição.",
-        origem:"exposicao",criadoEm:agora.toISOString().slice(0,10),msgStatus:{}};
-      const ref=await db.collection("clients").add(novo);
-      clienteId=ref.id;
-    }
+  // Salvar cliente novo se necessário
+  let clientePromise=Promise.resolve(clienteAtual?.id||null);
+  if(clienteAtual?.isNew && clienteAtual.nome!=="Venda avulsa"){
+    const novo={
+      nome:clienteAtual.nome,telefone:clienteAtual.telefone||"",
+      email:"",aniversario:"",pipeline:"Cliente ativo",
+      preferencias:[],ocasioes:[],produtos:[],
+      indicadoPor:"",empresaId:"",origem:"exposicao",
+      notas:"Cadastrado via PDV exposição.",
+      criadoEm:agora.slice(0,10),msgStatus:{}
+    };
+    clientePromise=db.collection("clients").add(novo).then(ref=>ref.id);
+  }
 
-    // Salvar pedido
+  clientePromise.then(clienteId=>{
     const pedido={
       clienteId:clienteId||"",
       clienteNome:clienteAtual?.nome||"Venda avulsa",
       clienteTelefone:clienteAtual?.telefone||"",
-      itens:items.map(i=>({skuId:i.sku.id,sku:i.sku.sku||"",nome:i.sku.nomeComercial||"",qty:i.qty,precoUnit:i.sku.precoVenda||0,subtotal:(i.sku.precoVenda||0)*i.qty})),
-      total,obs,
-      origem:"exposicao",
-      status:"pago",
-      pagamento:"maquininha",
-      criadoEm:agora.toISOString(),
+      itens:items.map(i=>({skuId:i.sku.id,sku:i.sku.sku||"",nome:i.nome,qty:i.qty,precoUnit:i.preco,subtotal:i.preco*i.qty})),
+      total,obs,origem:"exposicao",status:"pago",
+      pagamento:"maquininha",criadoEm:agora,
       criadoPor:currentUser?.email||""
     };
-    await db.collection("pedidos").add(pedido);
-
-    // Tela de sucesso
-    const primeiroNome=(clienteAtual?.nome||"").split(" ")[0]||"cliente";
-    document.getElementById("suc-nome").textContent=primeiroNome==="Venda"?"Pedido confirmado!":"Obrigada, "+primeiroNome+"! 🎉";
-    document.getElementById("suc-total").textContent=fmtCurrency(total);
-    document.getElementById("suc-items").innerHTML=items.map(i=>`${i.qty}× ${i.sku.nomeComercial}`).join("<br/>");
-
+    return db.collection("pedidos").add(pedido);
+  }).then(()=>{
+    // Tela sucesso
+    const nome=(clienteAtual?.nome||"").split(" ")[0]||"";
+    document.getElementById("suc-nome").textContent=nome&&nome!=="Venda"?"Obrigada, "+nome+"! 🎉":"Pedido confirmado! 🎉";
+    document.getElementById("suc-total").textContent=fmtR(total);
+    document.getElementById("suc-items").innerHTML=items.map(i=>`${i.qty}× ${i.nome}`).join("<br>");
     // WhatsApp
-    const tel=clienteAtual?.telefone?.replace(/\D/g,"");
-    if(tel&&tel.length>=10){
-      const nomeCfg=appConfig.nome||"nossa confeitaria";
-      const msg=`Olá ${primeiroNome}! 🎂 Obrigada pela sua compra em ${nomeCfg}!\n\n`+
-        items.map(i=>`• ${i.qty}× ${i.sku.nomeComercial} — ${fmtCurrency(i.sku.precoVenda*i.qty)}`).join("\n")+
-        `\n\nTotal: ${fmtCurrency(total)}\n\nFoi um prazer te atender! 🍰`;
-      const waLink=document.getElementById("suc-wa");
-      waLink.href="https://wa.me/55"+tel+"?text="+encodeURIComponent(msg);
-      waLink.style.display="flex";
-    }else{
+    const tel=(clienteAtual?.telefone||"").replace(/\D/g,"");
+    if(tel.length>=10){
+      const msg="Olá "+nome+"! 🎂 Obrigada pela sua compra"+(appConfig.nome?" na "+appConfig.nome:"")+
+        "!\n\n"+items.map(i=>"• "+i.qty+"× "+i.nome+" — "+fmtR(i.preco*i.qty)).join("\n")+
+        "\n\nTotal: "+fmtR(total)+"\n\nFoi um prazer te atender! 🍰";
+      const waBtn=document.getElementById("suc-wa");
+      waBtn.href="https://wa.me/55"+tel+"?text="+encodeURIComponent(msg);
+      waBtn.style.display="flex";
+    } else {
       document.getElementById("suc-wa").style.display="none";
     }
-
     showScreen("sucesso");
-  }catch(e){
-    alert("Erro ao salvar pedido: "+e.message);
-  }
+  }).catch(e=>alert("Erro ao salvar: "+e.message));
 }
 
 function novoAtendimento(){
@@ -463,7 +482,7 @@ function novoAtendimento(){
   document.getElementById("pdv-nome").value="";
   document.getElementById("pdv-obs").value="";
   document.getElementById("cliente-found").style.display="none";
-  document.getElementById("pdv-search").value="";
+  const ps=document.getElementById("pdv-search");if(ps)ps.value="";
   catAtiva="";
   renderCatsPDV();
   renderSKUsPDV();
