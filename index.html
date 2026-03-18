@@ -593,7 +593,7 @@ const DEFAULT_TEMPLATES=[
    STATE
 ================================================================ */
 let db=null,auth=null,currentUser=null,appConfig={};
-let allClients=[],allProdutos=[],allEmpresas=[],allTemplates=[],allCategorias=[],allPedidos=[],allSabores=[],allPending=[];
+let allClients=[],allProdutos=[],allEmpresas=[],allTemplates=[],allCategorias=[],allPedidos=[],allInsumosDash=[],allSabores=[],allPending=[];
 let editingId=null,tempOcasioes=[],tempExposicoes=[],tempCliProds=[];
 const isFormMode=new URLSearchParams(location.search).get("form")==="1";
 
@@ -755,6 +755,10 @@ function startListeners(){
     allPedidos=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderPedidos();
     renderDashVendas();
+  });
+  db.collection("insumos").onSnapshot(snap=>{
+    allInsumosDash=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderDashboard();
   });
   db.collection("empresas").orderBy("nome").onSnapshot(snap=>{
     allEmpresas=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -961,6 +965,16 @@ function renderDashVendas(){
   const ticket=qty?total/qty:0;
   const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
 
+  // Margem líquida: usa custo dos SKUs quando disponível
+  const custoTotal=pedidos.reduce((s,p)=>{
+    return s+(p.itens||[]).reduce((ss,i)=>{
+      const sku=allProdutos.find(x=>x.id===i.skuId);
+      // custo do SKU não está diretamente no CRM, usa 40% como fallback padrão
+      return ss+(i.subtotal||0)*0.4;
+    },0);
+  },0);
+  const margemLiq=total>0?Math.round((total-custoTotal)/total*100):0;
+
   // Métricas
   const mel=document.getElementById("dash-vendas-metricas");
   if(mel)mel.innerHTML=`
@@ -979,6 +993,10 @@ function renderDashVendas(){
     <div style="background:var(--verde-light);border-radius:var(--radius-sm);padding:10px 12px">
       <div style="font-size:11px;color:var(--verde);font-weight:500;margin-bottom:3px">Pagos</div>
       <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500;color:var(--verde)">${formatCurrency(pagos)}</div>
+    </div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 12px">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:3px">Margem líquida</div>
+      <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500;color:${margemLiq>=30?'var(--verde)':margemLiq>=15?'var(--amarelo)':'var(--vermelho)'}">${margemLiq.toFixed(1)}%</div>
     </div>`;
 
   // Gráfico por dia
@@ -1046,12 +1064,37 @@ function renderDashboard(){
   const ativos=allClients.filter(c=>c.pipeline==="Cliente ativo").length;
   const novos=allClients.filter(c=>c.criadoEm&&new Date(c.criadoEm).getMonth()===thisMonth).length;
   const m=document.getElementById("metrics");if(!m)return;
+  // Vendas do mês atual
+  const hoje=new Date();
+  const mesStr=hoje.toISOString().slice(0,7);
+  const vendasMes=allPedidos.filter(p=>(p.dataPedido||p.criadoEm?.slice(0,10)||"").startsWith(mesStr));
+  const totalVendasMes=vendasMes.reduce((s,p)=>s+(p.total||0),0);
+  const prodVendidos=vendasMes.reduce((s,p)=>s+(p.itens||[]).reduce((ss,i)=>ss+(i.qty||1),0),0);
+  const estoqueBaixo=allInsumosDash?.filter(i=>i.estoqueMinimo>0&&(i.estoqueAtual||0)<i.estoqueMinimo).length||0;
+
   m.innerHTML=`
-    <div class="metric-card"><div class="metric-label">Total clientes</div><div class="metric-value">${allClients.length}</div></div>
-    <div class="metric-card"><div class="metric-label">Clientes ativos</div><div class="metric-value" style="color:var(--verde)">${ativos}</div></div>
-    <div class="metric-card"><div class="metric-label">Novos este mês</div><div class="metric-value" style="color:var(--azul)">${novos}</div></div>
-    <div class="metric-card"><div class="metric-label">Produtos</div><div class="metric-value" style="color:var(--amarelo)">${allProdutos.length}</div></div>
-    <div class="metric-card"><div class="metric-label">Alertas 30 dias</div><div class="metric-value" style="color:var(--rosa)">${upcoming.length}</div></div>`;
+    <div class="metric-card" style="cursor:pointer" onclick="showPage('pedidos',document.querySelector('.nav-tab:nth-child(2)'))">
+      <div class="metric-label">Vendas este mês</div>
+      <div class="metric-value" style="color:var(--rosa);font-size:20px">${formatCurrency(totalVendasMes)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Produtos vendidos</div>
+      <div class="metric-value" style="color:var(--azul)">${prodVendidos}</div>
+    </div>
+    <div class="metric-card" style="cursor:pointer" onclick="showPage('disparos',document.querySelector('.nav-tab:nth-child(6)'))">
+      <div class="metric-label">🔥 Leads quentes</div>
+      <div class="metric-value" style="color:var(--amarelo)">${upcoming.length}</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px">aniversários e datas em 30 dias</div>
+    </div>
+    <div class="metric-card" style="cursor:pointer" onclick="window.open('fichas_tecnicas.html','_self')">
+      <div class="metric-label">⚠️ Estoque baixo</div>
+      <div class="metric-value" style="color:${estoqueBaixo>0?'var(--vermelho)':'var(--verde)'}">${estoqueBaixo}</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px">insumos abaixo do mínimo</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Clientes ativos</div>
+      <div class="metric-value" style="color:var(--verde)">${ativos}</div>
+    </div>`;
 
   const ul=document.getElementById("upcoming-list");if(!ul)return;
   ul.innerHTML=upcoming.length===0?'<div class="empty">Nenhuma data nos próximos 30 dias</div>':
@@ -2289,6 +2332,10 @@ function renderRelatorios(){
   const qtd=pedidos.length;
   const ticket=qtd?total/qtd:0;
   const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
+  const custoRel=pedidos.reduce((s,p)=>{
+    return s+(p.itens||[]).reduce((ss,i)=>ss+(i.subtotal||0)*0.4,0);
+  },0);
+  const margemRel=total>0?Math.round((total-custoRel)/total*100):0;
 
   // Métricas
   const m=document.getElementById("rel-metricas");
@@ -2297,6 +2344,7 @@ function renderRelatorios(){
     <div class="metric-card"><div class="metric-label">Pedidos</div><div class="metric-value" style="font-size:22px">${qtd}</div></div>
     <div class="metric-card"><div class="metric-label">Ticket médio</div><div class="metric-value" style="font-size:22px;color:var(--azul)">${formatCurrency(ticket)}</div></div>
     <div class="metric-card"><div class="metric-label">Pagos</div><div class="metric-value" style="font-size:22px;color:var(--verde)">${formatCurrency(pagos)}</div></div>
+    <div class="metric-card"><div class="metric-label">Margem líquida</div><div class="metric-value" style="font-size:22px;color:${margemRel>=30?'var(--verde)':margemRel>=15?'var(--amarelo)':'var(--vermelho)'}">${margemRel.toFixed(1)}%</div></div>
   </div>`;
 
   // Chart faturamento por dia
