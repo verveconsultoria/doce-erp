@@ -254,6 +254,7 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard',this)">Painel</button>
     <button class="nav-tab" onclick="showPage('pedidos',this)">🛒 Pedidos</button>
+    <button class="nav-tab" onclick="showPage('agenda',this)">📅 Agenda</button>
     <button class="nav-tab" onclick="showPage('produtos',this)">Produtos</button>
     <button class="nav-tab" onclick="showPage('empresas',this)">Empresas</button>
     <button class="nav-tab" onclick="showPage('clientes',this)">Clientes <span id="pend-badge"></span></button>
@@ -416,6 +417,35 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
     </div>
     <div id="disp-summary" style="margin-bottom:14px"></div>
     <div id="disp-list"></div>
+  </div>
+
+  <!-- AGENDA -->
+  <div id="page-agenda" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Agenda</h2>
+      <button class="btn-primary btn-sm" onclick="openModal('exposicao')">+ Nova exposição</button>
+    </div>
+
+    <!-- Calendário -->
+    <div class="data-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <button onclick="agendaMes(-1)" style="border:none;background:none;font-size:18px;cursor:pointer;padding:4px 8px">‹</button>
+        <div id="agenda-mes-label" style="font-weight:600;font-size:15px;font-family:'Playfair Display',serif"></div>
+        <button onclick="agendaMes(1)" style="border:none;background:none;font-size:18px;cursor:pointer;padding:4px 8px">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px">
+        ${["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map(d=>`<div style="text-align:center;font-size:11px;color:var(--text-muted);font-weight:500;padding:4px 0">${d}</div>`).join("")}
+      </div>
+      <div id="agenda-cal" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px"></div>
+    </div>
+
+    <!-- Lista de exposições -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <button onclick="agendaFiltro('proximas',this)" class="btn-sm" style="border-radius:99px;background:var(--rosa);color:#fff;border-color:var(--rosa)">Próximas</button>
+      <button onclick="agendaFiltro('passadas',this)" class="btn-sm" style="border-radius:99px">Passadas</button>
+      <button onclick="agendaFiltro('todas',this)" class="btn-sm" style="border-radius:99px">Todas</button>
+    </div>
+    <div id="agenda-lista"></div>
   </div>
 
   <!-- PEDIDOS -->
@@ -603,7 +633,7 @@ const DEFAULT_TEMPLATES=[
    STATE
 ================================================================ */
 let db=null,auth=null,currentUser=null,appConfig={};
-let allClients=[],allProdutos=[],allEmpresas=[],allTemplates=[],allCategorias=[],allPedidos=[],allInsumosDash=[],allSabores=[],allPending=[];
+let allClients=[],allProdutos=[],allEmpresas=[],allTemplates=[],allCategorias=[],allPedidos=[],allInsumosDash=[],allAgenda=[],allSabores=[],allPending=[];
 let editingId=null,tempOcasioes=[],tempExposicoes=[],tempCliProds=[];
 const isFormMode=new URLSearchParams(location.search).get("form")==="1";
 
@@ -771,6 +801,11 @@ function startListeners(){
     allInsumosDash=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderDashboard();
   });
+  db.collection("agenda").orderBy("dataInicio").onSnapshot(snap=>{
+    allAgenda=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderAgenda();
+    renderDashboard();
+  });
   db.collection("empresas").orderBy("nome").onSnapshot(snap=>{
     allEmpresas=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderEmpresas();
@@ -889,6 +924,7 @@ function showPage(id,btn){
   if(id==="config")applyConfig();
   if(id==="disparos")renderDisparos();
   if(id==="pedidos")renderPedidos();
+  if(id==="agenda")renderAgenda();
   if(id==="relatorios"){renderRelatorios();}
 }
 
@@ -1440,6 +1476,7 @@ function buildForm(type,id){
   if(type==="empresa")return buildEmpresaForm(id);
   if(type==="template")return buildTemplateForm(id);
   if(type==="pedido"){tempPedidoItens=editingId?(allPedidos.find(p=>p.id===editingId)?.itens||[]):[];return buildPedidoForm(id);}
+  if(type==="exposicao")return buildExposicaoForm(id);
   if(type==="categoria")return`<div class="form-group"><label class="form-label">Nome</label><input id="f-cat"/></div><div style="text-align:right"><button class="btn-primary" onclick="saveCategoria()">Salvar</button></div>`;
   if(type==="sabor")return`<div class="form-group"><label class="form-label">Nome</label><input id="f-sabor"/></div><div style="text-align:right"><button class="btn-primary" onclick="saveSabor()">Salvar</button></div>`;
   return"";
@@ -2588,6 +2625,232 @@ function renderRelatorios(){
       <div class="metric-label">${esc(k)}</div>
       <div style="font-size:16px;font-weight:600;color:${cores[i%cores.length]}">${formatCurrency(v)}</div>
     </div>`).join("");
+}
+
+/* ================================================================
+   AGENDA
+================================================================ */
+let agendaViewMes=new Date().getMonth();
+let agendaViewAno=new Date().getFullYear();
+let agendaFiltroAtivo="proximas";
+
+function agendaMes(delta){
+  agendaViewMes+=delta;
+  if(agendaViewMes>11){agendaViewMes=0;agendaViewAno++;}
+  if(agendaViewMes<0){agendaViewMes=11;agendaViewAno--;}
+  renderAgenda();
+}
+
+function agendaFiltro(f,btn){
+  agendaFiltroAtivo=f;
+  document.querySelectorAll("#page-agenda .btn-sm").forEach(b=>{
+    b.style.background="transparent";b.style.color="";b.style.borderColor="";
+  });
+  if(btn){btn.style.background="var(--rosa)";btn.style.color="#fff";btn.style.borderColor="var(--rosa)";}
+  renderAgendaLista();
+}
+
+function renderAgenda(){
+  renderAgendaCal();
+  renderAgendaLista();
+}
+
+function renderAgendaCal(){
+  const label=document.getElementById("agenda-mes-label");
+  if(label)label.textContent=new Date(agendaViewAno,agendaViewMes,1).toLocaleString("pt-BR",{month:"long",year:"numeric"});
+  const cal=document.getElementById("agenda-cal");
+  if(!cal)return;
+
+  const primeiroDia=new Date(agendaViewAno,agendaViewMes,1).getDay();
+  const diasNoMes=new Date(agendaViewAno,agendaViewMes+1,0).getDate();
+  const hoje=new Date().toISOString().slice(0,10);
+
+  // Map exposições para dias deste mês
+  const diasComEvento={};
+  allAgenda.forEach(ev=>{
+    const di=ev.dataInicio||"";const df=ev.dataFim||di;
+    if(!di)return;
+    let cur=new Date(di+"T12:00:00");
+    const end=new Date(df+"T12:00:00");
+    while(cur<=end){
+      const k=cur.toISOString().slice(0,10);
+      if(k.startsWith(`${agendaViewAno}-${String(agendaViewMes+1).padStart(2,"0")}`)){
+        if(!diasComEvento[cur.getDate()])diasComEvento[cur.getDate()]=[];
+        diasComEvento[cur.getDate()].push(ev);
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+  });
+
+  let html="";
+  // Empty cells before first day
+  for(let i=0;i<primeiroDia;i++) html+=`<div></div>`;
+  for(let d=1;d<=diasNoMes;d++){
+    const dateStr=`${agendaViewAno}-${String(agendaViewMes+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const isHoje=dateStr===hoje;
+    const evs=diasComEvento[d]||[];
+    const hasEv=evs.length>0;
+    html+=`<div onclick="${hasEv?`openAgendaDia('${dateStr}')`:""}" style="
+      aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      border-radius:var(--radius-sm);font-size:13px;cursor:${hasEv?"pointer":"default"};
+      background:${isHoje?"var(--rosa)":hasEv?"var(--rosa-light)":"transparent"};
+      color:${isHoje?"#fff":"var(--text)"};
+      border:${hasEv&&!isHoje?"1px solid var(--rosa)":"1px solid transparent"};
+      font-weight:${isHoje||hasEv?"600":"400"};
+      transition:background .15s" ${hasEv?"onmouseover="this.style.background=this.style.background||'var(--rosa-light)'"":""}>
+      ${d}
+      ${hasEv?`<div style="width:5px;height:5px;border-radius:50%;background:${isHoje?"#fff":"var(--rosa)"};margin-top:2px"></div>`:""}
+    </div>`;
+  }
+  cal.innerHTML=html;
+}
+
+function openAgendaDia(dateStr){
+  const evs=allAgenda.filter(ev=>{
+    const di=ev.dataInicio||"";const df=ev.dataFim||di;
+    return dateStr>=di&&dateStr<=df;
+  });
+  if(evs.length===1){openModal("exposicao",evs[0].id);}
+  else if(evs.length>1){
+    // Show picker
+    const body=`<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">${dateStr.split("-").reverse().join("/")} — ${evs.length} eventos</div>`+
+      evs.map(e=>`<div class="data-card" style="padding:10px 12px;margin-bottom:8px;cursor:pointer" onclick="closeModal();openModal('exposicao','${e.id}')">
+        <div style="font-weight:500">${esc(e.titulo||e.empresaNome||"Exposição")}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${esc(e.empresaNome||"")}</div>
+      </div>`).join("")+
+      `<button onclick="closeModal()" class="btn-sm" style="margin-top:8px;width:100%">Fechar</button>`;
+    document.getElementById("modal-title").textContent="Eventos do dia";
+    document.getElementById("modal-body").innerHTML=body;
+    document.getElementById("modal").style.display="flex";
+  }
+}
+
+function renderAgendaLista(){
+  const hoje=new Date().toISOString().slice(0,10);
+  let evs=[...allAgenda];
+  if(agendaFiltroAtivo==="proximas") evs=evs.filter(e=>(e.dataFim||e.dataInicio||"")>=hoje);
+  else if(agendaFiltroAtivo==="passadas") evs=evs.filter(e=>(e.dataFim||e.dataInicio||"")<hoje);
+  evs.sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""));
+
+  const lista=document.getElementById("agenda-lista");
+  if(!lista)return;
+  lista.innerHTML=evs.length===0?`<div class="empty">Nenhuma exposição ${agendaFiltroAtivo==="proximas"?"agendada":"encontrada"}</div>`:
+    evs.map(ev=>renderAgendaCard(ev)).join("");
+}
+
+function renderAgendaCard(ev){
+  const hoje=new Date().toISOString().slice(0,10);
+  const di=(ev.dataInicio||"").split("-").reverse().join("/");
+  const df=ev.dataFim?(ev.dataFim.split("-").reverse().join("/")):null;
+  const dataStr=df&&df!==di?`${di} → ${df}`:di;
+  const isHoje=hoje>=(ev.dataInicio||"")&&hoje<=(ev.dataFim||ev.dataInicio||"");
+  const isPast=(ev.dataFim||ev.dataInicio||"")<hoje;
+
+  // Vendas desta exposição
+  const vendasEv=allPedidos.filter(p=>p.empresaId===ev.empresaId&&p.dataPedido>=(ev.dataInicio||"")&&p.dataPedido<=(ev.dataFim||ev.dataInicio||ev.dataPedido||""));
+  const totalEv=vendasEv.reduce((s,p)=>s+(p.total||0),0);
+  const custoEv=vendasEv.reduce((s,p)=>s+(p.itens||[]).reduce((ss,i)=>{const sk=allProdutos.find(x=>x.id===i.skuId);return ss+(sk?.custoCalculado?(sk.custoCalculado*(i.qty||1)):(i.subtotal||0)*0.4);},0),0);
+  const margemEv=totalEv-custoEv;
+
+  const pctFat=ev.metaFaturamento>0?Math.min(Math.round(totalEv/ev.metaFaturamento*100),100):null;
+  const cor=pctFat===null?"var(--cinza-border)":pctFat>=100?"var(--verde)":pctFat>=70?"var(--amarelo)":"var(--rosa)";
+
+  const pdvUrl=`pdv.html`;
+
+  return`<div class="data-card" style="margin-bottom:10px;${isHoje?"border-left:3px solid var(--verde);":""}">
+    <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-weight:500;font-size:14px">${esc(ev.titulo||ev.empresaNome||"Exposição")}</span>
+          ${isHoje?`<span class="badge" style="background:var(--verde-light);color:var(--verde)">● Hoje</span>`:""}
+          ${isPast?`<span class="badge" style="background:var(--cinza-light);color:var(--text-muted)">Encerrada</span>`:""}
+          <span class="tag">${esc(ev.status||"Agendada")}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
+          📅 ${dataStr} ${ev.empresaNome?`· 📍 ${esc(ev.empresaNome)}`:""}
+        </div>
+        ${ev.obs?`<div style="font-size:12px;color:var(--text-muted)">💬 ${esc(ev.obs)}</div>`:""}
+        ${ev.metaFaturamento?`<div style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+            <span style="color:var(--text-muted)">Meta: ${formatCurrency(ev.metaFaturamento)}</span>
+            <span style="color:${cor};font-weight:600">${formatCurrency(totalEv)}${pctFat!==null?" ("+pctFat+"%)":""}</span>
+          </div>
+          <div style="height:5px;background:var(--cinza-border);border-radius:99px;overflow:hidden">
+            <div style="width:${pctFat||0}%;height:100%;background:${cor};border-radius:99px"></div>
+          </div>
+          ${ev.metaMargem?`<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Margem: ${formatCurrency(margemEv)} / Meta ${formatCurrency(ev.metaMargem)}</div>`:""}
+        </div>`:""}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+        ${isHoje?`<a href="${pdvUrl}" target="_blank" style="background:var(--verde);color:#fff;padding:7px 12px;border-radius:var(--radius-sm);text-decoration:none;font-size:12px;font-weight:500;white-space:nowrap;text-align:center">🛒 Abrir PDV</a>`:""}
+        <button class="btn-sm" onclick="openModal('exposicao','${ev.id}')">Editar</button>
+        <button class="btn-sm btn-danger" onclick="deleteDoc('agenda','${ev.id}')">✕</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildExposicaoForm(id){
+  const ev=id?allAgenda.find(x=>x.id===id):null;
+  const empOpts=`<option value="">Selecionar empresa...</option>`+
+    allEmpresas.sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"))
+    .map(e=>`<option value="${e.id}"${ev?.empresaId===e.id?" selected":""}>${esc(e.nome)}</option>`).join("");
+  const statusOpts=["Agendada","Em andamento","Encerrada","Cancelada"]
+    .map(s=>`<option${ev?.status===s?" selected":""}>${s}</option>`).join("");
+
+  return`
+    <div class="form-group"><label class="form-label">Título / nome do evento</label>
+      <input id="f-ag-titulo" value="${esc(ev?.titulo||"")}" placeholder="Ex: Feira de Artesanato Centro"/></div>
+    <div class="form-group"><label class="form-label">Empresa / local</label>
+      <select id="f-ag-empresa">${empOpts}</select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Data início <span class="req">*</span></label>
+        <input id="f-ag-di" type="date" value="${ev?.dataInicio||new Date().toISOString().slice(0,10)}"/></div>
+      <div class="form-group"><label class="form-label">Data fim (se multidia)</label>
+        <input id="f-ag-df" type="date" value="${ev?.dataFim||""}"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Meta de faturamento (R$)</label>
+        <input id="f-ag-fat" type="number" step="100" value="${ev?.metaFaturamento||""}" placeholder="Ex: 3000"/></div>
+      <div class="form-group"><label class="form-label">Meta de margem (R$)</label>
+        <input id="f-ag-mar" type="number" step="100" value="${ev?.metaMargem||""}" placeholder="Ex: 1200"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Status</label>
+        <select id="f-ag-status">${statusOpts}</select></div>
+      <div class="form-group"><label class="form-label">Preço bolo P neste evento (R$)</label>
+        <input id="f-ag-bolo" type="number" step="10" value="${ev?.precoBoloP||""}" placeholder="Ex: 130"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Observações / logística</label>
+      <textarea id="f-ag-obs" rows="2" style="font-family:inherit;font-size:13px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 10px;width:100%;resize:none">${esc(ev?.obs||"")}</textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveExposicao()">Salvar</button>
+    </div>`;
+}
+
+async function saveExposicao(){
+  const di=v("f-ag-di");if(!di)return alert("Informe a data de início.");
+  const empSel=document.getElementById("f-ag-empresa");
+  const empId=empSel?.value||"";
+  const empNome=empSel?.options[empSel.selectedIndex]?.text||"";
+  const obj={
+    titulo:v("f-ag-titulo")||empNome||"Exposição",
+    empresaId:empId,
+    empresaNome:empId?empNome:"",
+    dataInicio:di,
+    dataFim:v("f-ag-df")||di,
+    metaFaturamento:parseFloat(v("f-ag-fat"))||0,
+    metaMargem:parseFloat(v("f-ag-mar"))||0,
+    precoBoloP:parseFloat(v("f-ag-bolo"))||0,
+    status:v("f-ag-status")||"Agendada",
+    obs:document.getElementById("f-ag-obs")?.value||"",
+    tipo:"exposicao",
+    criadoEm:editingId?(allAgenda.find(a=>a.id===editingId)?.criadoEm||new Date().toISOString()):new Date().toISOString()
+  };
+  if(editingId)await db.collection("agenda").doc(editingId).set(obj);
+  else await db.collection("agenda").add(obj);
+  closeModal();showToast("Exposição salva!");
 }
 /* ================================================================
    INIT
