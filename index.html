@@ -1224,9 +1224,20 @@ function renderMetaCard(totalMes, margemMes, prodVendidos){
     (ev.dataInicio||"").startsWith(mesStr)
   );
   const metaExpoFat=exposMes.reduce((s,ev)=>s+(ev.metaFaturamento||0),0);
-  // Use app meta + expo metas combined
+
+  // Calculate margem líquida from expo meta faturamento using avg SKU margin
+  const bolosPMar=allProdutos.filter(s=>s.tamanho==="P"&&s.precoVenda>0);
+  const margemPctMedia=bolosPMar.length
+    ? bolosPMar.reduce((s,b)=>{
+        const pv=b.precoVenda||0; const ct=b.custoCalculado||pv*0.4;
+        return s+(pv>0?(pv-ct)/pv:0.4);
+      },0)/bolosPMar.length
+    : 0.4; // fallback 40%
+  const metaExpoMar=Math.round(metaExpoFat*margemPctMedia);
+
+  // Combined metas
   const metaFatTotal=(appMeta.faturamento||0)+metaExpoFat;
-  const metaMarTotal=appMeta.margem||0;
+  const metaMarTotal=(appMeta.margem||0)+metaExpoMar;
 
   const temMeta=metaFatTotal>0||metaMarTotal>0;
   if(!temMeta){card.style.display="none";return;}
@@ -1256,7 +1267,7 @@ function renderMetaCard(totalMes, margemMes, prodVendidos){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
       ${metaMar>0?`<div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-          <span style="color:var(--text-muted);font-weight:500">Margem líquida</span>
+          <span style="color:var(--text-muted);font-weight:500">Margem líquida${metaExpoMar>0?" (inclui "+exposMes.length+" expo)":""}</span>
           <span style="color:${cor(pctMar)};font-weight:600">${formatCurrency(margemMes)} / ${formatCurrency(metaMar)}</span>
         </div>
         <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
