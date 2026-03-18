@@ -238,19 +238,38 @@ auth.onAuthStateChanged(async user=>{
 function signIn(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>document.getElementById("login-err").textContent=e.message);}
 
 async function loadData(){
+  // Show loading
+  document.getElementById("pdv-skus").innerHTML=`<div class="empty" style="padding:40px 0">⏳ Carregando produtos...</div>`;
+
+  // Load config first (public read)
   try{
-    const [skuSnap,cliSnap,cfgSnap]=await Promise.all([
-      db.collection("skus").orderBy("nomeComercial").get(),
-      db.collection("clients").orderBy("nome").get(),
-      db.collection("config").doc("main").get()
-    ]);
-    allSKUs=skuSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.ativo!==false);
-    allClients=cliSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const cfgSnap=await db.collection("config").doc("main").get();
     if(cfgSnap.exists){appConfig=cfgSnap.data();if(appConfig.nome)document.getElementById("header-title").textContent="PDV — "+appConfig.nome;}
-    console.log("Clientes carregados:", allClients.length, "SKUs:", allSKUs.length);
-    renderCatsPDV();
-    renderSKUsPDV();
-  }catch(e){showToast("Erro ao carregar dados: "+e.message);}
+  }catch(e){console.warn("Config:",e.message);}
+
+  // Load SKUs
+  try{
+    const skuSnap=await db.collection("skus").orderBy("nomeComercial").get();
+    allSKUs=skuSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.ativo!==false);
+    console.log("SKUs carregados:",allSKUs.length);
+  }catch(e){
+    console.error("Erro SKUs:",e.message);
+    document.getElementById("pdv-skus").innerHTML=`<div class="empty" style="color:var(--rosa)">⚠️ Sem permissão para carregar produtos.<br/><small>Verifique se seu e-mail está autorizado no CRM.</small></div>`;
+    return;
+  }
+
+  // Load clients
+  try{
+    const cliSnap=await db.collection("clients").orderBy("nome").get();
+    allClients=cliSnap.docs.map(d=>({id:d.id,...d.data()}));
+    console.log("Clientes carregados:",allClients.length);
+  }catch(e){
+    console.warn("Clientes não carregados:",e.message);
+    // Not fatal - can still sell without client lookup
+  }
+
+  renderCatsPDV();
+  renderSKUsPDV();
 }
 
 /* ── UTILS ── */
@@ -265,6 +284,8 @@ function cartCount(){return Object.values(cart).reduce((s,i)=>s+i.qty,0);}
 /* ── CLIENTE ── */
 function buscaCliente(tel){
   const clean=tel.replace(/\D/g,"");
+  if(!clean||clean.length<8)return;
+  if(!allClients.length){console.warn("Nenhum cliente carregado ainda");return;}
   const found=allClients.find(c=>(c.telefone||"").replace(/\D/g,"")===clean);
   const card=document.getElementById("cliente-found");
   const nomeEl=document.getElementById("pdv-nome");
