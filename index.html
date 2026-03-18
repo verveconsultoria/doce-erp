@@ -475,6 +475,10 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
       </div>
     </div>
     <div class="data-card" style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:12px">Ticket médio ao longo do tempo</div>
+      <div id="rel-chart-ticket" style="height:100px;display:flex;align-items:flex-end;gap:3px;overflow-x:auto"></div>
+    </div>
+    <div class="data-card" style="margin-bottom:16px">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:10px">Por forma de pagamento</div>
       <div id="rel-pagamentos" style="display:flex;gap:10px;flex-wrap:wrap"></div>
     </div>
@@ -2245,6 +2249,31 @@ function renderRelatorios(){
         <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${esc(k)}</span>
         <span style="color:var(--verde);font-weight:600">${formatCurrency(v)}</span>
       </div>`).join("");
+
+  // Ticket médio por semana
+  const porSemana={};
+  pedidos.forEach(p=>{
+    const d=new Date(p.dataPedido||p.criadoEm?.slice(0,10)||new Date());
+    const semana=new Date(d);semana.setDate(d.getDate()-d.getDay());
+    const k=semana.toISOString().slice(0,10);
+    if(!porSemana[k])porSemana[k]={total:0,qty:0};
+    porSemana[k].total+=(p.total||0);porSemana[k].qty++;
+  });
+  const semanas=Object.keys(porSemana).sort();
+  const maxTicket=Math.max(...semanas.map(s=>porSemana[s].total/porSemana[s].qty),1);
+  const chartTicket=document.getElementById("rel-chart-ticket");
+  if(chartTicket){
+    chartTicket.innerHTML=semanas.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados suficientes</div>':
+      semanas.map(s=>{
+        const ticket=porSemana[s].total/porSemana[s].qty;
+        const pct=Math.max(Math.round(ticket/maxTicket*100),4);
+        const label=s.split("-").slice(1).reverse().join("/");
+        return`<div style="flex:1;min-width:30px;display:flex;flex-direction:column;align-items:center;gap:3px" title="Semana ${label}: ${formatCurrency(ticket)}">
+          <div style="font-size:9px;color:var(--text-muted);white-space:nowrap">${formatCurrency(ticket).replace("R$ ","")}</div>
+          <div style="width:100%;background:var(--azul);border-radius:3px 3px 0 0;height:${pct}%"></div>
+          <div style="font-size:9px;color:var(--text-muted)">${label}</div>
+        </div>`;}).join("");
+  }
 
   // Por pagamento
   const porPagto={};

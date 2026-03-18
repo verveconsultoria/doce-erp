@@ -257,8 +257,6 @@ button:active{transform:scale(.97)}
       <div id="fech-empresa" style="font-size:13px;color:var(--text-muted)"></div>
     </div>
     <div id="fech-metricas" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px"></div>
-    <div id="fech-pagamentos" style="margin-bottom:16px"></div>
-    <div id="fech-meta" style="margin-bottom:16px"></div>
     <div class="section-label">Pedidos da sessão</div>
     <div id="fech-pedidos" style="margin-bottom:20px"></div>
     <button class="btn-primary" onclick="fecharCaixaConfirmar()" style="margin-bottom:10px">✓ Confirmar fechamento</button>
@@ -420,51 +418,14 @@ function renderFechamento(){
 
     // Metricas
     document.getElementById("fech-metricas").innerHTML=`
-      <div class="data-card" style="padding:12px;text-align:center">
-        <div class="metric-label">Total vendido</div>
-        <div class="metric-value" style="font-size:22px;color:var(--rosa)">${fmtR(total)}</div>
+      <div class="data-card" style="padding:16px;text-align:center;border-top:4px solid var(--rosa)">
+        <div class="metric-label" style="font-size:12px">Total vendido</div>
+        <div style="font-size:32px;font-family:'Playfair Display',serif;font-weight:500;color:var(--rosa);margin-top:4px">${fmtR(total)}</div>
       </div>
-      <div class="data-card" style="padding:12px;text-align:center">
-        <div class="metric-label">Pedidos</div>
-        <div class="metric-value" style="font-size:22px">${pedidos.length}</div>
-      </div>
-      <div class="data-card" style="padding:12px;text-align:center">
-        <div class="metric-label">Ticket médio</div>
-        <div class="metric-value" style="font-size:18px;color:var(--azul)">${pedidos.length?fmtR(total/pedidos.length):"—"}</div>
-      </div>
-      <div class="data-card" style="padding:12px;text-align:center">
-        <div class="metric-label">Clientes</div>
-        <div class="metric-value" style="font-size:22px">${new Set(pedidos.map(p=>p.clienteId).filter(Boolean)).size}</div>
+      <div class="data-card" style="padding:16px;text-align:center;border-top:4px solid var(--azul)">
+        <div class="metric-label" style="font-size:12px">Pedidos realizados</div>
+        <div style="font-size:32px;font-family:'Playfair Display',serif;font-weight:500;color:var(--azul);margin-top:4px">${pedidos.length}</div>
       </div>`;
-
-    // Pagamentos breakdown
-    const pagtos={};
-    pedidos.forEach(p=>{const k=p.pagamento||"Outro";pagtos[k]=(pagtos[k]||0)+(p.total||0);});
-    const pagtoHtml=Object.entries(pagtos).map(([k,v])=>
-      `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cinza-border)">
-        <span style="font-size:13px">${esc(k)}</span>
-        <span style="font-weight:600;color:var(--azul)">${fmtR(v)}</span>
-      </div>`).join("");
-    document.getElementById("fech-pagamentos").innerHTML=
-      `<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">Por forma de pagamento</div>
-      <div class="data-card" style="padding:6px 12px">${pagtoHtml}</div>`;
-
-    // Meta progress
-    if(meta){
-      const cor=pct>=100?"var(--verde)":pct>=70?"var(--amarelo)":"var(--rosa)";
-      document.getElementById("fech-meta").innerHTML=
-        `<div class="data-card" style="padding:12px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-            <span style="font-size:13px;font-weight:500">Meta do dia</span>
-            <span style="font-size:13px;color:${cor};font-weight:600">${pct}% · ${fmtR(total)} / ${fmtR(meta)}</span>
-          </div>
-          <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden">
-            <div style="width:${pct}%;height:100%;background:${cor};border-radius:99px;transition:width .5s"></div>
-          </div>
-        </div>`;
-    } else {
-      document.getElementById("fech-meta").innerHTML="";
-    }
 
     // Lista de pedidos
     document.getElementById("fech-pedidos").innerHTML=pedidos.length===0?
