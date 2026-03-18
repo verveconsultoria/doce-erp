@@ -253,12 +253,12 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
   </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard',this)">Painel</button>
-    <button class="nav-tab" onclick="showPage('clientes',this)">Clientes <span id="pend-badge"></span></button>
+    <button class="nav-tab" onclick="showPage('pedidos',this)">🛒 Pedidos</button>
     <button class="nav-tab" onclick="showPage('produtos',this)">Produtos</button>
     <button class="nav-tab" onclick="showPage('empresas',this)">Empresas</button>
-    <button class="nav-tab" onclick="showPage('mensagens',this)">Mensagens</button>
+    <button class="nav-tab" onclick="showPage('clientes',this)">Clientes <span id="pend-badge"></span></button>
     <button class="nav-tab" id="tab-disparos" onclick="showPage('disparos',this)">📤 Disparos <span id="disparos-badge"></span></button>
-    <button class="nav-tab" onclick="showPage('pedidos',this)">🛒 Pedidos</button>
+    <button class="nav-tab" onclick="showPage('mensagens',this)">Mensagens</button>
     <button class="nav-tab" onclick="showPage('relatorios',this)">📊 Relatórios</button>
     <button class="nav-tab" onclick="showPage('config',this)">⚙ Config</button>
   </div>
@@ -275,6 +275,22 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
   <div id="page-dashboard" class="page active">
     <h2 style="margin-bottom:16px;font-size:22px">Painel geral</h2>
     <div class="metric-grid" id="metrics"></div>
+
+    <!-- Vendas do período -->
+    <div class="data-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Vendas</div>
+        <div style="display:flex;gap:6px">
+          <button onclick="setVendasPeriodo('dia',this)" class="btn-sm" id="vbtn-dia" style="border-radius:99px">Hoje</button>
+          <button onclick="setVendasPeriodo('semana',this)" class="btn-sm active-period" id="vbtn-semana" style="border-radius:99px;background:var(--rosa);color:#fff;border-color:var(--rosa)">Semana</button>
+          <button onclick="setVendasPeriodo('mes',this)" class="btn-sm" id="vbtn-mes" style="border-radius:99px">Mês</button>
+        </div>
+      </div>
+      <div id="dash-vendas-metricas" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px"></div>
+      <div id="dash-vendas-chart" style="height:80px;display:flex;align-items:flex-end;gap:3px;overflow-x:auto;margin-bottom:10px"></div>
+      <div id="dash-vendas-lista"></div>
+    </div>
+
     <div class="grid2">
       <div><div class="section-subtitle">Próximas datas (30 dias)</div><div id="upcoming-list"></div></div>
       <div><div class="section-subtitle">Funil de vendas</div><div id="pipeline-list"></div></div>
@@ -738,6 +754,7 @@ function startListeners(){
   db.collection("pedidos").orderBy("criadoEm","desc").onSnapshot(snap=>{
     allPedidos=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderPedidos();
+    renderDashVendas();
   });
   db.collection("empresas").orderBy("nome").onSnapshot(snap=>{
     allEmpresas=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -899,7 +916,124 @@ async function rejectPending(id){
 /* ================================================================
    DASHBOARD
 ================================================================ */
+
+/* ================================================================
+   DASHBOARD — VENDAS
+================================================================ */
+let vendasPeriodo="semana";
+
+function setVendasPeriodo(p,btn){
+  vendasPeriodo=p;
+  ["dia","semana","mes"].forEach(x=>{
+    const b=document.getElementById("vbtn-"+x);
+    if(!b)return;
+    if(x===p){b.style.background="var(--rosa)";b.style.color="#fff";b.style.borderColor="var(--rosa)";}
+    else{b.style.background="transparent";b.style.color="";b.style.borderColor="";}
+  });
+  renderDashVendas();
+}
+
+function renderDashVendas(){
+  const hoje=new Date();
+  const hojeStr=hoje.toISOString().slice(0,10);
+  let de,label,agrupador;
+
+  if(vendasPeriodo==="dia"){
+    de=hojeStr;label="Hoje";
+    agrupador=p=>p.dataPedido||p.criadoEm?.slice(0,10)||"";
+  } else if(vendasPeriodo==="semana"){
+    const d=new Date(hoje);d.setDate(d.getDate()-6);
+    de=d.toISOString().slice(0,10);label="Últimos 7 dias";
+    agrupador=p=>p.dataPedido||p.criadoEm?.slice(0,10)||"";
+  } else {
+    const d=new Date(hoje.getFullYear(),hoje.getMonth(),1);
+    de=d.toISOString().slice(0,10);label="Este mês";
+    agrupador=p=>p.dataPedido||p.criadoEm?.slice(0,10)||"";
+  }
+
+  const pedidos=allPedidos.filter(p=>{
+    const data=p.dataPedido||p.criadoEm?.slice(0,10)||"";
+    return data>=de&&data<=hojeStr;
+  });
+
+  const total=pedidos.reduce((s,p)=>s+(p.total||0),0);
+  const qty=pedidos.length;
+  const ticket=qty?total/qty:0;
+  const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
+
+  // Métricas
+  const mel=document.getElementById("dash-vendas-metricas");
+  if(mel)mel.innerHTML=`
+    <div style="background:var(--rosa-light);border-radius:var(--radius-sm);padding:10px 12px">
+      <div style="font-size:11px;color:var(--rosa);font-weight:500;margin-bottom:3px">Total</div>
+      <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500;color:var(--rosa)">${formatCurrency(total)}</div>
+    </div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 12px">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:3px">Pedidos</div>
+      <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500">${qty}</div>
+    </div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 12px">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:3px">Ticket médio</div>
+      <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500;color:var(--azul)">${formatCurrency(ticket)}</div>
+    </div>
+    <div style="background:var(--verde-light);border-radius:var(--radius-sm);padding:10px 12px">
+      <div style="font-size:11px;color:var(--verde);font-weight:500;margin-bottom:3px">Pagos</div>
+      <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500;color:var(--verde)">${formatCurrency(pagos)}</div>
+    </div>`;
+
+  // Gráfico por dia
+  const porDia={};
+  pedidos.forEach(p=>{
+    const d=p.dataPedido||p.criadoEm?.slice(0,10)||"";
+    if(d)porDia[d]=(porDia[d]||0)+(p.total||0);
+  });
+  const dias=Object.keys(porDia).sort();
+  const maxVal=Math.max(...Object.values(porDia),1);
+  const chart=document.getElementById("dash-vendas-chart");
+  if(chart){
+    if(vendasPeriodo==="dia"||dias.length<=1){
+      chart.style.display="none";
+    } else {
+      chart.style.display="flex";
+      chart.innerHTML=dias.map(d=>{
+        const val=porDia[d];
+        const pct=Math.max(Math.round(val/maxVal*100),3);
+        const lbl=d.split("-").slice(1).reverse().join("/");
+        return`<div style="flex:1;min-width:24px;display:flex;flex-direction:column;align-items:center;gap:2px" title="${lbl}: ${formatCurrency(val)}">
+          <div style="font-size:9px;color:var(--text-muted);white-space:nowrap">${val>=1000?(val/1000).toFixed(1)+"k":Math.round(val)}</div>
+          <div style="width:80%;background:var(--rosa);border-radius:3px 3px 0 0;flex:1;max-height:${pct}%;min-height:3px"></div>
+          <div style="font-size:9px;color:var(--text-muted)">${lbl}</div>
+        </div>`;}).join("");
+    }
+  }
+
+  // Lista dos últimos pedidos do período
+  const lista=document.getElementById("dash-vendas-lista");
+  if(lista){
+    const ultimos=pedidos.slice(0,5);
+    if(ultimos.length===0){
+      lista.innerHTML=`<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:10px 0">Nenhum pedido ${label.toLowerCase()}</div>`;
+    } else {
+      lista.innerHTML=`<div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:8px">Últimos pedidos</div>`+
+        ultimos.map(p=>{
+          const cor=STATUS_COLORS?.[p.status]||"#888";
+          const itensStr=(p.itens||[]).map(i=>i.qty+"× "+i.nome).join(", ");
+          return`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--cinza-border)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:500">${esc(p.clienteNome||"Venda avulsa")}</div>
+              <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itensStr)}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-weight:600;color:var(--rosa);font-size:13px">${formatCurrency(p.total||0)}</div>
+              <div style="font-size:10px;padding:1px 6px;border-radius:99px;background:${cor}22;color:${cor}">${esc(p.status||"")}</div>
+            </div>
+          </div>`;}).join("")+
+        (pedidos.length>5?`<div style="text-align:center;margin-top:8px"><button onclick="showPage('pedidos',document.querySelector('.nav-tab:nth-child(8)'))" class="btn-sm">Ver todos (${pedidos.length})</button></div>`:"");
+    }
+  }
+}
 function renderDashboard(){
+  renderDashVendas();
   const today=new Date();today.setHours(0,0,0,0);
   const thisMonth=today.getMonth();
   const upcoming=[];
