@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>PDV — Exposição</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@500&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --rosa:#b5536a;--rosa-light:#f9edf0;--rosa-dark:#8e3d52;
+  --verde:#3a7d5a;--verde-light:#e8f4ee;
+  --cinza:#f5f4f2;--cinza-border:#e0ddd8;
+  --bg:#fdfcfb;--white:#fff;--text:#2a2a2a;--text-muted:#7a7572;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 2px 8px rgba(0,0,0,.08);--shadow-md:0 4px 20px rgba(0,0,0,.12);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:15px;min-height:100vh;max-width:480px;margin:0 auto}
+h1,h2{font-family:'Playfair Display',serif}
+input,select{font-family:'DM Sans',sans-serif;font-size:15px;background:var(--white);color:var(--text);border:1.5px solid var(--cinza-border);border-radius:var(--radius-sm);padding:12px 14px;width:100%;outline:none;transition:border-color .15s;-webkit-appearance:none}
+input:focus,select:focus{border-color:var(--rosa)}
+button{font-family:'DM Sans',sans-serif;cursor:pointer;border-radius:var(--radius-sm);border:1px solid var(--cinza-border);background:transparent;color:var(--text);font-size:15px;padding:12px 18px;transition:all .15s;width:100%;font-weight:500}
+button:active{transform:scale(.97)}
+.btn-primary{background:var(--rosa)!important;color:#fff!important;border-color:var(--rosa)!important;font-size:16px!important;padding:14px!important}
+.btn-success{background:var(--verde)!important;color:#fff!important;border-color:var(--verde)!important;font-size:16px!important;padding:16px!important}
+.btn-outline{background:transparent;border:1.5px solid var(--cinza-border);color:var(--text-muted)}
+
+/* HEADER */
+#header{background:var(--rosa);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+#header h1{font-size:18px;font-family:'DM Sans',sans-serif;font-weight:600}
+#header-sub{font-size:12px;opacity:.8}
+#cart-badge{background:#fff;color:var(--rosa);border-radius:99px;font-size:13px;font-weight:700;padding:2px 8px;min-width:28px;text-align:center}
+
+/* SCREENS */
+.screen{display:none;padding:16px;padding-bottom:100px}
+.screen.active{display:block}
+
+/* LOGIN */
+#screen-login{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;padding-bottom:24px}
+.login-card{background:var(--white);border-radius:var(--radius);padding:28px 20px;width:100%;box-shadow:var(--shadow-md);text-align:center}
+.btn-google{display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border:1.5px solid #dadce0;border-radius:var(--radius-sm);background:#fff;color:#444;font-family:'DM Sans',sans-serif;font-size:15px;cursor:pointer;width:100%;justify-content:center;font-weight:500}
+
+/* CLIENTE */
+.section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:10px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:13px;color:var(--text-muted);margin-bottom:5px;display:block;font-weight:500}
+.found-card{background:var(--verde-light);border:1.5px solid #a8d5be;border-radius:var(--radius-sm);padding:12px 14px;margin-top:8px;display:flex;align-items:center;justify-content:space-between}
+.found-card .name{font-weight:600;font-size:15px}
+.found-card .tag{font-size:12px;color:var(--verde)}
+
+/* PRODUTOS */
+.sku-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.sku-card{background:var(--white);border:1.5px solid var(--cinza-border);border-radius:var(--radius);padding:12px;text-align:center;cursor:pointer;transition:all .15s;position:relative}
+.sku-card:active{transform:scale(.96)}
+.sku-card.selected{border-color:var(--rosa);background:var(--rosa-light)}
+.sku-card .thumb{width:56px;height:56px;object-fit:cover;border-radius:var(--radius-sm);margin:0 auto 8px;display:block}
+.sku-card .thumb-ph{width:56px;height:56px;background:var(--cinza);border-radius:var(--radius-sm);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.sku-card .sku-nome{font-size:13px;font-weight:500;line-height:1.3;margin-bottom:4px}
+.sku-card .sku-preco{font-size:14px;font-weight:600;color:var(--rosa)}
+.sku-card .sku-tam{font-size:11px;color:var(--text-muted)}
+.sku-qty-badge{position:absolute;top:-6px;right:-6px;background:var(--rosa);color:#fff;border-radius:99px;font-size:12px;font-weight:700;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+
+/* CARRINHO */
+.cart-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--cinza-border)}
+.cart-item:last-child{border-bottom:none}
+.cart-item-info{flex:1;min-width:0}
+.cart-item-nome{font-weight:500;font-size:14px}
+.cart-item-preco{font-size:13px;color:var(--rosa);font-weight:600}
+.qty-ctrl{display:flex;align-items:center;gap:8px}
+.qty-btn{width:32px;height:32px;border-radius:99px;border:1.5px solid var(--cinza-border);background:transparent;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0}
+.qty-val{font-size:16px;font-weight:600;min-width:24px;text-align:center}
+
+/* TOTAL BAR */
+#total-bar{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--white);border-top:1px solid var(--cinza-border);padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 -4px 16px rgba(0,0,0,.08)}
+#total-bar .total-val{font-size:20px;font-weight:700;color:var(--rosa);font-family:'Playfair Display',serif;flex:1}
+#total-bar .total-label{font-size:11px;color:var(--text-muted)}
+#btn-checkout{flex:1;background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+
+/* SUCESSO */
+#screen-sucesso{text-align:center}
+.sucesso-icon{font-size:72px;margin:20px 0 16px}
+.sucesso-nome{font-size:24px;font-family:'Playfair Display',serif;color:var(--rosa);margin-bottom:8px}
+.sucesso-total{font-size:18px;font-weight:600;color:var(--verde);margin-bottom:6px}
+.sucesso-items{font-size:13px;color:var(--text-muted);margin-bottom:28px;line-height:1.8}
+.wa-btn{display:flex;align-items:center;justify-content:center;gap:8px;background:#25d366;color:#fff;border:none;border-radius:var(--radius-sm);padding:14px;font-size:16px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;text-decoration:none;margin-bottom:12px}
+
+/* TOAST */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2a2a2a;color:#fff;padding:10px 20px;border-radius:99px;font-size:13px;z-index:999;transition:opacity .3s;white-space:nowrap;pointer-events:none;opacity:0}
+#toast.show{opacity:1}
+
+/* MISC */
+.empty{text-align:center;color:var(--text-muted);font-size:14px;padding:32px 16px}
+.cat-filter{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
+.cat-filter::-webkit-scrollbar{display:none}
+.cat-btn{flex-shrink:0;padding:6px 14px;border-radius:99px;border:1.5px solid var(--cinza-border);background:transparent;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap}
+.cat-btn.active{background:var(--rosa);color:#fff;border-color:var(--rosa)}
+.divider{border:none;border-top:1px solid var(--cinza-border);margin:16px 0}
+.obs-input{font-family:'DM Sans',sans-serif;font-size:14px;background:var(--white);color:var(--text);border:1.5px solid var(--cinza-border);border-radius:var(--radius-sm);padding:10px 12px;width:100%;outline:none;resize:none}
+.obs-input:focus{border-color:var(--rosa)}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- LOGIN -->
+<div id="screen-login">
+  <div class="login-card">
+    <div style="font-size:48px;margin-bottom:12px">🎂</div>
+    <h2 style="font-size:22px;color:var(--rosa);margin-bottom:6px">PDV Exposição</h2>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:20px">Faça login para começar a vender</p>
+    <button class="btn-google" onclick="signIn()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Entrar com Google
+    </button>
+    <div id="login-err" style="margin-top:10px;font-size:12px;color:var(--rosa)"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main" style="display:none">
+  <div id="header">
+    <div>
+      <div id="header-title">PDV Exposição</div>
+      <div id="header-sub">Toque para vender</div>
+    </div>
+    <div id="cart-badge">0</div>
+  </div>
+
+  <!-- STEP 1: CLIENTE -->
+  <div id="screen-cliente" class="screen active">
+    <div class="section-label" style="margin-top:4px">1 — Identificar cliente</div>
+    <div class="form-group">
+      <label class="form-label">Telefone</label>
+      <input id="pdv-tel" type="tel" placeholder="(11) 99999-9999" oninput="maskTel(this);buscaCliente(this.value)" maxlength="15" inputmode="numeric"/>
+      <div id="cliente-found" style="display:none" class="found-card">
+        <div>
+          <div class="name" id="found-name"></div>
+          <div class="tag">✓ Cliente cadastrado</div>
+        </div>
+        <span style="font-size:20px">👤</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nome <span style="color:var(--text-muted);font-weight:400">(preenche automático se já cadastrado)</span></label>
+      <input id="pdv-nome" type="text" placeholder="Nome do cliente"/>
+    </div>
+    <button class="btn-primary" onclick="goToProdutos()">Próximo — Escolher produtos →</button>
+    <div style="margin-top:10px">
+      <button class="btn-outline" onclick="goToProdutos(true)">Pular — vender sem identificar</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: PRODUTOS -->
+  <div id="screen-produtos" class="screen">
+    <div class="section-label" style="margin-top:4px">2 — Selecionar produtos</div>
+    <div id="pdv-search-wrap" class="form-group">
+      <input id="pdv-search" placeholder="Buscar produto..." oninput="renderSKUsPDV()" style="margin-bottom:8px"/>
+    </div>
+    <div class="cat-filter" id="pdv-cats"></div>
+    <div id="pdv-skus"></div>
+    <div id="total-bar">
+      <div>
+        <div class="total-label">Total</div>
+        <div class="total-val" id="total-val">R$ 0,00</div>
+      </div>
+      <button id="btn-checkout" onclick="goToCarrinho()" disabled style="opacity:.5">Ver carrinho →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: CARRINHO / CONFIRMAR -->
+  <div id="screen-carrinho" class="screen">
+    <div class="section-label" style="margin-top:4px">3 — Confirmar pedido</div>
+    <div id="cart-items"></div>
+    <hr class="divider"/>
+    <div class="form-group">
+      <label class="form-label">Observações (opcional)</label>
+      <textarea id="pdv-obs" class="obs-input" rows="2" placeholder="Ex: sem glúten, retirar no local..."></textarea>
+    </div>
+    <div style="background:var(--cinza);border-radius:var(--radius-sm);padding:14px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:14px;color:var(--text-muted)">Total do pedido</span>
+        <span style="font-size:24px;font-weight:700;color:var(--rosa);font-family:'Playfair Display',serif" id="cart-total">R$ 0,00</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">💳 Pagamento via maquininha</div>
+    </div>
+    <button class="btn-success" onclick="confirmarPedido()">✓ Confirmar pedido</button>
+    <div style="margin-top:10px">
+      <button class="btn-outline" onclick="showScreen('produtos')">← Voltar aos produtos</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: SUCESSO -->
+  <div id="screen-sucesso" class="screen">
+    <div class="sucesso-icon">🎉</div>
+    <div class="sucesso-nome" id="suc-nome">Pedido confirmado!</div>
+    <div class="sucesso-total" id="suc-total"></div>
+    <div class="sucesso-items" id="suc-items"></div>
+    <a id="suc-wa" href="#" target="_blank" class="wa-btn" style="display:none">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+      Enviar confirmação no WhatsApp
+    </a>
+    <button class="btn-primary" onclick="novoAtendimento()">+ Novo atendimento</button>
+    <div style="margin-top:10px">
+      <a href="index.html" style="display:block;text-align:center;color:var(--text-muted);font-size:13px;text-decoration:none;padding:10px">Ir para o CRM →</a>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+const FIREBASE_CONFIG={apiKey:"AIzaSyDdP4UH5_o_gzuYLeVG0ruxkRoeW5aAlxE",authDomain:"crm-confeitaria-de0fe.firebaseapp.com",projectId:"crm-confeitaria-de0fe",appId:"1:713356973364:web:341b74f629e5fa48290161"};
+
+let db=null,auth=null,currentUser=null,appConfig={};
+let allSKUs=[],allClients=[];
+let cart={}; // {skuId: {sku, qty}}
+let clienteAtual=null; // {id, nome, telefone, isNew}
+let catAtiva="";
+
+firebase.initializeApp(FIREBASE_CONFIG);
+db=firebase.firestore();auth=firebase.auth();
+
+auth.onAuthStateChanged(async user=>{
+  if(!user){
+    document.getElementById("screen-login").style.display="flex";
+    document.getElementById("main").style.display="none";
+    return;
+  }
+  currentUser=user;
+  document.getElementById("screen-login").style.display="none";
+  document.getElementById("main").style.display="block";
+  loadData();
+});
+
+function signIn(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>document.getElementById("login-err").textContent=e.message);}
+
+async function loadData(){
+  try{
+    const [skuSnap,cliSnap,cfgSnap]=await Promise.all([
+      db.collection("skus").where("ativo","!=",false).orderBy("ativo").orderBy("nomeComercial").get(),
+      db.collection("clients").orderBy("nome").get(),
+      db.collection("config").doc("main").get()
+    ]);
+    allSKUs=skuSnap.docs.map(d=>({id:d.id,...d.data()}));
+    allClients=cliSnap.docs.map(d=>({id:d.id,...d.data()}));
+    if(cfgSnap.exists){appConfig=cfgSnap.data();if(appConfig.nome)document.getElementById("header-title").textContent="PDV — "+appConfig.nome;}
+    renderCatsPDV();
+    renderSKUsPDV();
+  }catch(e){showToast("Erro ao carregar dados: "+e.message);}
+}
+
+/* ── UTILS ── */
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function fmtCurrency(v){if(!v&&v!==0)return"—";return"R$ "+parseFloat(v).toFixed(2).replace(".",",")}
+function maskTel(el){let v=el.value.replace(/\D/g,"");if(v.length<=2)v=v;else if(v.length<=7)v="("+v.slice(0,2)+") "+v.slice(2);else v="("+v.slice(0,2)+") "+v.slice(2,7)+"-"+v.slice(7,11);el.value=v;}
+function showToast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500);}
+function showScreen(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById("screen-"+id).classList.add("active");window.scrollTo(0,0);}
+function cartTotal(){return Object.values(cart).reduce((s,i)=>s+(i.sku.precoVenda||0)*i.qty,0);}
+function cartCount(){return Object.values(cart).reduce((s,i)=>s+i.qty,0);}
+
+/* ── CLIENTE ── */
+function buscaCliente(tel){
+  const clean=tel.replace(/\D/g,"");
+  const found=allClients.find(c=>c.telefone?.replace(/\D/g,"")=== clean);
+  const card=document.getElementById("cliente-found");
+  const nomeEl=document.getElementById("pdv-nome");
+  if(found&&clean.length>=10){
+    document.getElementById("found-name").textContent=found.nome;
+    card.style.display="flex";
+    nomeEl.value=found.nome;
+    clienteAtual={id:found.id,nome:found.nome,telefone:tel,isNew:false};
+  }else{
+    card.style.display="none";
+    if(nomeEl.value===clienteAtual?.nome)nomeEl.value="";
+    clienteAtual=null;
+  }
+}
+
+function goToProdutos(skip){
+  if(!skip){
+    const nome=document.getElementById("pdv-nome").value.trim();
+    const tel=document.getElementById("pdv-tel").value.trim();
+    if(!nome)return alert("Informe pelo menos o nome do cliente.");
+    if(!clienteAtual)clienteAtual={id:null,nome,telefone:tel,isNew:true};
+    else clienteAtual.nome=nome;
+  }else{
+    clienteAtual={id:null,nome:"Venda avulsa",telefone:"",isNew:false};
+  }
+  showScreen("produtos");
+}
+
+/* ── PRODUTOS ── */
+function renderCatsPDV(){
+  const cats=["Todos",...new Set(allSKUs.map(s=>s.categoria).filter(Boolean))];
+  const el=document.getElementById("pdv-cats");
+  el.innerHTML=cats.map(c=>`<button class="cat-btn${catAtiva===c||(!catAtiva&&c==="Todos")?" active":""}" onclick="setCat('${c}')">${c}</button>`).join("");
+}
+function setCat(cat){catAtiva=cat==="Todos"?"":cat;renderCatsPDV();renderSKUsPDV();}
+
+function renderSKUsPDV(){
+  const q=(document.getElementById("pdv-search")?.value||"").toLowerCase();
+  const f=allSKUs.filter(s=>{
+    const qm=!q||s.nomeComercial?.toLowerCase().includes(q)||s.sku?.toLowerCase().includes(q);
+    const cm=!catAtiva||s.categoria===catAtiva;
+    return qm&&cm;
+  });
+  const el=document.getElementById("pdv-skus");
+  if(!el)return;
+  el.innerHTML=f.length===0?`<div class="empty">Nenhum produto encontrado</div>`:
+    `<div class="sku-grid">${f.map(s=>{
+      const qty=cart[s.id]?.qty||0;
+      return`<div class="sku-card${qty>0?" selected":""}" onclick="addToCart('${s.id}')">
+        ${qty>0?`<div class="sku-qty-badge">${qty}</div>`:""}
+        ${s.foto?`<img src="${esc(s.foto)}" class="thumb" onerror="this.style.display='none'"/>`:`<div class="thumb-ph">🎂</div>`}
+        <div class="sku-nome">${esc(s.nomeComercial||"")}</div>
+        <div class="sku-tam">${esc(s.tamanho||"")} ${s.encomenda?'· '+s.encomenda+'h':''}</div>
+        <div class="sku-preco">${fmtCurrency(s.precoVenda)}</div>
+      </div>`;}).join("")}</div>`;
+  updateTotalBar();
+}
+
+function addToCart(skuId){
+  const sku=allSKUs.find(s=>s.id===skuId);if(!sku)return;
+  if(!cart[skuId])cart[skuId]={sku,qty:0};
+  cart[skuId].qty++;
+  renderSKUsPDV();
+  showToast(sku.nomeComercial+" adicionado!");
+}
+
+function updateTotalBar(){
+  const total=cartTotal(),count=cartCount();
+  const el=document.getElementById("total-val");
+  const btn=document.getElementById("btn-checkout");
+  if(el)el.textContent=fmtCurrency(total);
+  if(btn){btn.disabled=count===0;btn.style.opacity=count===0?"0.5":"1";}
+  const badge=document.getElementById("cart-badge");
+  if(badge)badge.textContent=count;
+}
+
+/* ── CARRINHO ── */
+function goToCarrinho(){
+  renderCartItems();
+  showScreen("carrinho");
+}
+
+function renderCartItems(){
+  const items=Object.values(cart).filter(i=>i.qty>0);
+  const el=document.getElementById("cart-items");
+  const totalEl=document.getElementById("cart-total");
+  if(!el)return;
+  el.innerHTML=items.length===0?`<div class="empty">Carrinho vazio</div>`:
+    items.map(i=>`<div class="cart-item">
+      <div class="cart-item-info">
+        <div class="cart-item-nome">${esc(i.sku.nomeComercial||"")}</div>
+        <div class="cart-item-preco">${fmtCurrency(i.sku.precoVenda)} × ${i.qty} = ${fmtCurrency(i.sku.precoVenda*i.qty)}</div>
+      </div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty('${i.sku.id}',-1)">−</button>
+        <span class="qty-val">${i.qty}</span>
+        <button class="qty-btn" onclick="changeQty('${i.sku.id}',1)">+</button>
+      </div>
+    </div>`).join("");
+  if(totalEl)totalEl.textContent=fmtCurrency(cartTotal());
+}
+
+function changeQty(skuId,delta){
+  if(!cart[skuId])return;
+  cart[skuId].qty=Math.max(0,cart[skuId].qty+delta);
+  if(cart[skuId].qty===0)delete cart[skuId];
+  renderCartItems();
+  updateTotalBar();
+}
+
+/* ── CONFIRMAR ── */
+async function confirmarPedido(){
+  const items=Object.values(cart).filter(i=>i.qty>0);
+  if(!items.length)return alert("Carrinho vazio.");
+  const obs=document.getElementById("pdv-obs")?.value.trim()||"";
+  const total=cartTotal();
+  const agora=new Date();
+
+  try{
+    // Criar ou atualizar cliente
+    let clienteId=clienteAtual?.id;
+    if(clienteAtual?.isNew&&clienteAtual.nome!=="Venda avulsa"){
+      const novo={nome:clienteAtual.nome,telefone:clienteAtual.telefone||"",email:"",
+        aniversario:"",pipeline:"Cliente ativo",preferencias:[],ocasioes:[],produtos:[],
+        indicadoPor:"",empresaId:"",notas:"Cadastrado via PDV exposição.",
+        origem:"exposicao",criadoEm:agora.toISOString().slice(0,10),msgStatus:{}};
+      const ref=await db.collection("clients").add(novo);
+      clienteId=ref.id;
+    }
+
+    // Salvar pedido
+    const pedido={
+      clienteId:clienteId||"",
+      clienteNome:clienteAtual?.nome||"Venda avulsa",
+      clienteTelefone:clienteAtual?.telefone||"",
+      itens:items.map(i=>({skuId:i.sku.id,sku:i.sku.sku||"",nome:i.sku.nomeComercial||"",qty:i.qty,precoUnit:i.sku.precoVenda||0,subtotal:(i.sku.precoVenda||0)*i.qty})),
+      total,obs,
+      origem:"exposicao",
+      status:"pago",
+      pagamento:"maquininha",
+      criadoEm:agora.toISOString(),
+      criadoPor:currentUser?.email||""
+    };
+    await db.collection("pedidos").add(pedido);
+
+    // Tela de sucesso
+    const primeiroNome=(clienteAtual?.nome||"").split(" ")[0]||"cliente";
+    document.getElementById("suc-nome").textContent=primeiroNome==="Venda"?"Pedido confirmado!":"Obrigada, "+primeiroNome+"! 🎉";
+    document.getElementById("suc-total").textContent=fmtCurrency(total);
+    document.getElementById("suc-items").innerHTML=items.map(i=>`${i.qty}× ${i.sku.nomeComercial}`).join("<br/>");
+
+    // WhatsApp
+    const tel=clienteAtual?.telefone?.replace(/\D/g,"");
+    if(tel&&tel.length>=10){
+      const nomeCfg=appConfig.nome||"nossa confeitaria";
+      const msg=`Olá ${primeiroNome}! 🎂 Obrigada pela sua compra em ${nomeCfg}!\n\n`+
+        items.map(i=>`• ${i.qty}× ${i.sku.nomeComercial} — ${fmtCurrency(i.sku.precoVenda*i.qty)}`).join("\n")+
+        `\n\nTotal: ${fmtCurrency(total)}\n\nFoi um prazer te atender! 🍰`;
+      const waLink=document.getElementById("suc-wa");
+      waLink.href="https://wa.me/55"+tel+"?text="+encodeURIComponent(msg);
+      waLink.style.display="flex";
+    }else{
+      document.getElementById("suc-wa").style.display="none";
+    }
+
+    showScreen("sucesso");
+  }catch(e){
+    alert("Erro ao salvar pedido: "+e.message);
+  }
+}
+
+function novoAtendimento(){
+  cart={};clienteAtual=null;
+  document.getElementById("pdv-tel").value="";
+  document.getElementById("pdv-nome").value="";
+  document.getElementById("pdv-obs").value="";
+  document.getElementById("cliente-found").style.display="none";
+  document.getElementById("pdv-search").value="";
+  catAtiva="";
+  renderCatsPDV();
+  renderSKUsPDV();
+  updateTotalBar();
+  showScreen("cliente");
+}
+</script>
+</body>
+</html>
