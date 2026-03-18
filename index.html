@@ -810,8 +810,9 @@ function startListeners(){
     allInsumosDash=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderDashboard();
   });
-  db.collection("agenda").orderBy("dataInicio").onSnapshot(snap=>{
-    allAgenda=snap.docs.map(d=>({id:d.id,...d.data()}));
+  db.collection("agenda").onSnapshot(snap=>{
+    allAgenda=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""));
     renderAgenda();
     renderDashboard();
   });
@@ -1136,7 +1137,11 @@ function openMetaConfig(){
   // Calculate average bolo P price from real SKUs
   const bolosP=allProdutos.filter(s=>s.tamanho==="P"&&s.precoVenda>0);
   const precoMedioP=bolosP.length?Math.round(bolosP.reduce((s,b)=>s+b.precoVenda,0)/bolosP.length):0;
-  const custoMedioP=bolosP.length?bolosP.reduce((s,b)=>s+(b.custoCalculado||0),0)/bolosP.length:0;
+  // Use custoCalculado if available, else estimate 40%
+  const temCusto=bolosP.some(b=>b.custoCalculado>0);
+  const custoMedioP=bolosP.length&&temCusto
+    ?bolosP.filter(b=>b.custoCalculado>0).reduce((s,b)=>s+(b.custoCalculado||0),0)/bolosP.filter(b=>b.custoCalculado>0).length
+    :precoMedioP*0.4;
   const margemMedioP=precoMedioP-custoMedioP;
   const margemPct=precoMedioP>0?Math.round(margemMedioP/precoMedioP*100):0;
 
@@ -1151,8 +1156,8 @@ function openMetaConfig(){
   const body=`
     <div class="info-box" style="margin-bottom:14px">
       ${bolosP.length>0
-        ?`Bolo P médio: <strong>${formatCurrency(precoMedioP)}</strong> (custo ${formatCurrency(custoMedioP)} · margem ${margemPct}%)`
-        :`Cadastre SKUs tamanho P nas Fichas Técnicas para cálculo automático.`}
+        ?`${bolosP.length} SKU(s) tamanho P encontrado(s). Preço médio: <strong>${formatCurrency(precoMedioP)}</strong> · Margem estimada: <strong>${margemPct}%</strong> (${formatCurrency(margemMedioP)} por bolo)${!temCusto?" · <em>Para cálculo exato, salve as fichas técnicas.</em>":""}`
+        :`Nenhum SKU tamanho P cadastrado. Gere SKUs nas Fichas Técnicas para cálculo automático.`}
     </div>
     <div class="form-group"><label class="form-label">Meta de margem líquida (R$) <span style="font-size:11px;color:var(--text-muted)">quanto quer lucrar no mês</span></label>
       <input id="meta-mar" type="number" step="100" value="${appMeta.margem||""}" placeholder="Ex: 2000" oninput="calcMetaFat()"/>
