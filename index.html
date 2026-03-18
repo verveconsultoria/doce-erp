@@ -287,6 +287,9 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
       <div id="dash-meta-inner"></div>
     </div>
 
+    <!-- Exposições próximas -->
+    <div id="dash-expo-card" style="display:none;margin-bottom:16px"></div>
+
     <!-- Vendas do período -->
     <div class="data-card" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
@@ -1245,6 +1248,8 @@ function renderDashboard(){
 
   // Meta card
   renderMetaCard(totalVendasMes, margemMes, prodVendidos);
+  // Exposicoes card
+  renderDashExposicoes();
 
   const ul=document.getElementById("upcoming-list");if(!ul)return;
   ul.innerHTML=upcoming.length===0?'<div class="empty">Nenhuma data nos próximos 30 dias</div>':
@@ -2697,7 +2702,7 @@ function renderAgendaCal(){
       color:${isHoje?"#fff":"var(--text)"};
       border:${hasEv&&!isHoje?"1px solid var(--rosa)":"1px solid transparent"};
       font-weight:${isHoje||hasEv?"600":"400"};
-      transition:background .15s" ${hasEv?"onmouseover="this.style.background=this.style.background||'var(--rosa-light)'"":""}>
+      transition:background .15s">
       ${d}
       ${hasEv?`<div style="width:5px;height:5px;border-radius:50%;background:${isHoje?"#fff":"var(--rosa)"};margin-top:2px"></div>`:""}
     </div>`;
@@ -2790,6 +2795,53 @@ function renderAgendaCard(ev){
   </div>`;
 }
 
+function renderDashExposicoes(){
+  const hoje=new Date().toISOString().slice(0,10);
+  const proxima7=new Date();proxima7.setDate(proxima7.getDate()+7);
+  const p7=proxima7.toISOString().slice(0,10);
+
+  const ativas=allAgenda.filter(ev=>
+    ev.tipo==="exposicao"&&(ev.dataFim||ev.dataInicio||"")>=hoje&&(ev.dataInicio||"")<=p7
+  ).sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""));
+
+  const card=document.getElementById("dash-expo-card");
+  if(!card)return;
+  if(ativas.length===0){card.style.display="none";return;}
+  card.style.display="block";
+
+  card.innerHTML=`<div class="data-card" style="border-left:3px solid var(--verde)">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--verde);margin-bottom:10px">🎪 Exposições esta semana</div>
+    ${ativas.map(ev=>{
+      const isHoje=hoje>=(ev.dataInicio||"")&&hoje<=(ev.dataFim||ev.dataInicio||"");
+      const di=(ev.dataInicio||"").split("-").reverse().join("/");
+      const df=ev.dataFim&&ev.dataFim!==ev.dataInicio?(ev.dataFim.split("-").reverse().join("/")):null;
+      const vendasEv=allPedidos.filter(p=>p.empresaId===ev.empresaId&&(p.dataPedido||"")>=(ev.dataInicio||"")&&(p.dataPedido||"")<=(ev.dataFim||ev.dataInicio||""));
+      const totalEv=vendasEv.reduce((s,p)=>s+(p.total||0),0);
+      const pctFat=ev.metaFaturamento>0?Math.min(Math.round(totalEv/ev.metaFaturamento*100),100):null;
+      const faltaBolos=ev.metaFaturamento>0&&ev.precoBoloP>0?Math.max(Math.ceil((ev.metaFaturamento-totalEv)/ev.precoBoloP),0):0;
+      const cor=pctFat===null?"var(--verde)":pctFat>=100?"var(--verde)":pctFat>=70?"var(--amarelo)":"var(--rosa)";
+      return`<div style="padding:10px 0;border-bottom:0.5px solid var(--cinza-border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:500;font-size:13px">${esc(ev.titulo||ev.empresaNome||"Exposição")}
+            ${isHoje?` <span class="badge" style="background:var(--verde-light);color:var(--verde);font-size:10px">Hoje</span>`:""}
+          </div>
+          <div style="font-size:11px;color:var(--text-muted)">${di}${df?" → "+df:""}</div>
+          ${ev.metaFaturamento?`<div style="margin-top:6px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+              <span>Meta ${formatCurrency(ev.metaFaturamento)}</span>
+              <span style="color:${cor};font-weight:600">${formatCurrency(totalEv)}${pctFat!==null?" · "+pctFat+"%":""}</span>
+            </div>
+            <div style="height:4px;background:var(--cinza-border);border-radius:99px">
+              <div style="width:${pctFat||0}%;height:100%;background:${cor};border-radius:99px"></div>
+            </div>
+            ${faltaBolos>0?`<div style="font-size:10px;color:var(--rosa);margin-top:2px">🎂 ~${faltaBolos} bolos P para bater a meta</div>`:""}
+          </div>`:""}
+        </div>
+        ${isHoje?`<a href="pdv.html" style="background:var(--verde);color:#fff;padding:6px 12px;border-radius:var(--radius-sm);text-decoration:none;font-size:12px;font-weight:500;white-space:nowrap">🛒 Abrir PDV</a>`:""}
+      </div>`;}).join("")}
+  </div>`;
+}
+
 function buildExposicaoForm(id){
   const ev=id?allAgenda.find(x=>x.id===id):null;
   const empOpts=`<option value="">Selecionar empresa...</option>`+
@@ -2810,16 +2862,10 @@ function buildExposicaoForm(id){
         <input id="f-ag-df" type="date" value="${ev?.dataFim||""}"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Meta de faturamento (R$)</label>
+      <div class="form-group"><label class="form-label">Meta de faturamento (R$) <span style="font-size:11px;color:var(--text-muted)">opcional</span></label>
         <input id="f-ag-fat" type="number" step="100" value="${ev?.metaFaturamento||""}" placeholder="Ex: 3000"/></div>
-      <div class="form-group"><label class="form-label">Meta de margem (R$)</label>
-        <input id="f-ag-mar" type="number" step="100" value="${ev?.metaMargem||""}" placeholder="Ex: 1200"/></div>
-    </div>
-    <div class="form-row">
       <div class="form-group"><label class="form-label">Status</label>
         <select id="f-ag-status">${statusOpts}</select></div>
-      <div class="form-group"><label class="form-label">Preço bolo P neste evento (R$)</label>
-        <input id="f-ag-bolo" type="number" step="10" value="${ev?.precoBoloP||""}" placeholder="Ex: 130"/></div>
     </div>
     <div class="form-group"><label class="form-label">Observações / logística</label>
       <textarea id="f-ag-obs" rows="2" style="font-family:inherit;font-size:13px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 10px;width:100%;resize:none">${esc(ev?.obs||"")}</textarea></div>
@@ -2841,8 +2887,6 @@ async function saveExposicao(){
     dataInicio:di,
     dataFim:v("f-ag-df")||di,
     metaFaturamento:parseFloat(v("f-ag-fat"))||0,
-    metaMargem:parseFloat(v("f-ag-mar"))||0,
-    precoBoloP:parseFloat(v("f-ag-bolo"))||0,
     status:v("f-ag-status")||"Agendada",
     obs:document.getElementById("f-ag-obs")?.value||"",
     tipo:"exposicao",
