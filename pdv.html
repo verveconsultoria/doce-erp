@@ -249,8 +249,8 @@ async function loadData(){
 
   // Load SKUs
   try{
-    const skuSnap=await db.collection("skus").orderBy("nomeComercial").get();
-    allSKUs=skuSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.ativo!==false);
+    const skuSnap=await db.collection("skus").get();
+    allSKUs=skuSnap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.ativo!==false).sort((a,b)=>(a.nomeComercial||"").localeCompare(b.nomeComercial||"","pt-BR"));
     console.log("SKUs carregados:",allSKUs.length);
   }catch(e){
     console.error("Erro SKUs:",e.message);
@@ -260,8 +260,8 @@ async function loadData(){
 
   // Load clients
   try{
-    const cliSnap=await db.collection("clients").orderBy("nome").get();
-    allClients=cliSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const cliSnap=await db.collection("clients").get();
+    allClients=cliSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
     console.log("Clientes carregados:",allClients.length);
   }catch(e){
     console.warn("Clientes não carregados:",e.message);
