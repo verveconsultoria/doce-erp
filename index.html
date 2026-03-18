@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CRM Confeitaria</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@500&display=swap" rel="stylesheet"/>
+
+<!-- Firebase v8 compat -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --rosa:#b5536a;--rosa-light:#f9edf0;--rosa-dark:#8e3d52;
+  --verde:#3a7d5a;--verde-light:#e8f4ee;
+  --azul:#1a73e8;--azul-light:#e8f0fe;
+  --amarelo:#c8820a;--amarelo-light:#fef3e0;
+  --cinza-light:#f5f4f2;--cinza-border:#e0ddd8;
+  --bg:#fdfcfb;--white:#fff;--text:#2a2a2a;--text-muted:#7a7572;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 1px 4px rgba(0,0,0,.08);--shadow-md:0 4px 16px rgba(0,0,0,.1);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+h1,h2,h3{font-family:'Playfair Display',serif}
+input,select,textarea{font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white);color:var(--text);border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 11px;width:100%;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--rosa)}
+button{font-family:'DM Sans',sans-serif;cursor:pointer;border-radius:var(--radius-sm);border:1px solid var(--cinza-border);background:transparent;color:var(--text);font-size:13px;padding:7px 14px;transition:all .15s}
+button:hover{background:var(--cinza-light)}
+button:active{transform:scale(.98)}
+.btn-primary{background:var(--rosa)!important;color:#fff!important;border-color:var(--rosa)!important}
+.btn-primary:hover{background:var(--rosa-dark)!important}
+.btn-success{background:var(--verde)!important;color:#fff!important;border-color:var(--verde)!important}
+.btn-danger{color:#c0392b!important;border-color:#e8b4b4!important}
+.btn-danger:hover{background:#fdf0f0!important}
+.btn-sm{padding:4px 10px!important;font-size:12px!important}
+.btn-wa{color:#25d366!important;border-color:#a8e6c4!important}
+
+/* NAV */
+#nav{background:var(--white);border-bottom:1px solid var(--cinza-border);padding:0 14px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.nav-brand{display:flex;align-items:center;gap:8px;padding:10px 0;margin-right:8px;flex-shrink:0}
+.nav-logo-ph{width:32px;height:32px;border-radius:50%;background:var(--rosa-light);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.nav-logo-img{width:32px;height:32px;border-radius:50%;object-fit:cover;display:none;flex-shrink:0}
+.nav-name{font-family:'Playfair Display',serif;font-size:15px;color:var(--rosa);font-weight:500;white-space:nowrap}
+.nav-tabs{display:flex;flex:1;overflow-x:auto}
+.nav-tabs::-webkit-scrollbar{display:none}
+.nav-tab{padding:10px 11px;border:none;background:transparent;border-bottom:2px solid transparent;border-radius:0;color:var(--text-muted);font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:color .15s}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{color:var(--rosa);border-bottom-color:var(--rosa);font-weight:500}
+.nav-right{display:flex;align-items:center;gap:8px;margin-left:auto;padding-left:8px;flex-shrink:0}
+.user-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;cursor:pointer;border:2px solid var(--cinza-border)}
+.sync-dot-live{width:7px;height:7px;border-radius:50%;background:var(--verde);flex-shrink:0;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* LAYOUT */
+#app{padding:20px;max-width:1000px;margin:0 auto}
+.page{display:none}.page.active{display:block}
+
+/* METRICS */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.metric-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.metric-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.metric-value{font-size:26px;font-family:'Playfair Display',serif}
+
+/* CARDS */
+.alert-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:11px 13px;margin-bottom:8px;border-left:3px solid;box-shadow:var(--shadow)}
+.data-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:13px 15px;margin-bottom:10px;box-shadow:var(--shadow);transition:box-shadow .15s}
+.data-card:hover{box-shadow:var(--shadow-md)}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0}
+.badge{font-size:11px;padding:2px 9px;border-radius:99px;font-weight:500;white-space:nowrap}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--cinza-light);color:var(--text-muted);white-space:nowrap}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--cinza-border);background:var(--white);box-shadow:var(--shadow);margin-bottom:14px}
+.data-table{width:100%;border-collapse:collapse;min-width:500px}
+.data-table th{background:var(--cinza-light);padding:8px 10px;text-align:left;font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--cinza-border);white-space:nowrap}
+.data-table td{padding:9px 10px;border-bottom:1px solid var(--cinza-border);font-size:13px;vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--cinza-light)}
+
+/* FORM */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.form-group{margin-bottom:12px}
+.form-label{font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block;font-weight:500}
+.pref-btn{padding:4px 10px;font-size:12px;border-radius:99px;border:1px solid var(--cinza-border);background:transparent;color:var(--text-muted);cursor:pointer;margin:2px;transition:all .15s}
+.pref-btn.active{background:var(--rosa-light);color:var(--rosa);border-color:var(--rosa)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.modal{background:var(--white);border-radius:var(--radius);width:100%;max-width:600px;max-height:92vh;overflow:auto;box-shadow:var(--shadow-md)}
+.modal-header{padding:14px 18px;border-bottom:1px solid var(--cinza-border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--white);z-index:10}
+.modal-body{padding:18px}
+.modal-title{font-family:'Playfair Display',serif;font-size:17px}
+.modal-close{border:none;background:none;font-size:18px;color:var(--text-muted);cursor:pointer;padding:2px 6px}
+
+/* MESSAGES */
+.msg-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.msg-preview{font-size:13px;line-height:1.65;color:var(--text-muted);background:var(--cinza-light);border-radius:var(--radius-sm);padding:11px 13px;margin:8px 0;white-space:pre-wrap}
+.msg-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:99px;cursor:pointer;border:1px solid;font-weight:500}
+.msg-status.sent{background:#e8f4ee;color:var(--verde);border-color:#a8d5be}
+.msg-status.pending{background:var(--cinza-light);color:var(--text-muted);border-color:var(--cinza-border)}
+
+/* SETTINGS */
+.settings-panel{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.info-box{background:var(--azul-light);border:1px solid #aecbfa;border-radius:var(--radius-sm);padding:10px 13px;font-size:12px;color:#1557b0;line-height:1.6;margin-bottom:10px}
+.warn-box{background:var(--amarelo-light);border:1px solid #fde68a;border-radius:var(--radius-sm);padding:10px 13px;font-size:12px;color:#92400e;line-height:1.6;margin-bottom:10px}
+code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11px}
+
+/* MISC */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.section-subtitle{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:500}
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.empty{padding:2rem;text-align:center;color:var(--text-muted);font-size:13px;background:var(--cinza-light);border-radius:var(--radius)}
+.ocasiao-item,.prod-item{display:flex;align-items:center;gap:8px;margin-bottom:6px;background:var(--cinza-light);padding:7px 10px;border-radius:var(--radius-sm)}
+.pending-badge{background:var(--rosa);color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600;margin-left:4px}
+.disp-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:13px 15px;margin-bottom:10px;box-shadow:var(--shadow);transition:box-shadow .15s}
+.disp-card:hover{box-shadow:var(--shadow-md)}
+.disp-card.sent{opacity:.6}
+.disp-day-header{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin:18px 0 8px;display:flex;align-items:center;gap:8px}
+.disp-day-header span{background:var(--cinza-border);height:1px;flex:1}
+.disp-tipo-badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500;white-space:nowrap}
+.disp-urgente .disp-tipo-badge{background:var(--rosa-light);color:var(--rosa)}
+.disp-proximo .disp-tipo-badge{background:var(--amarelo-light);color:var(--amarelo)}
+.disp-ok .disp-tipo-badge{background:var(--verde-light);color:var(--verde)}
+.wa-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);background:#25d366;color:#fff;border:none;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500;transition:background .15s;text-decoration:none}
+.wa-btn:hover{background:#1ea952}
+.sent-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:99px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid;transition:all .15s}
+.sent-btn.pending{background:var(--cinza-light);color:var(--text-muted);border-color:var(--cinza-border)}
+.sent-btn.done{background:var(--verde-light);color:var(--verde);border-color:#a8d5be}
+.template-select{font-size:12px;padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--cinza-border);background:var(--white);color:var(--text);max-width:220px}
+.loading{padding:3rem;text-align:center;color:var(--text-muted);font-size:13px}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--cinza-border);border-radius:4px}
+
+/* LOGIN / SETUP SCREENS */
+#login-screen,#setup-screen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:2rem;background:linear-gradient(135deg,var(--rosa-light) 0%,var(--bg) 100%)}
+.auth-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:420px;box-shadow:var(--shadow-md);text-align:center}
+.btn-google{display:inline-flex;align-items:center;gap:10px;padding:10px 20px;border:1px solid #dadce0;border-radius:var(--radius-sm);background:#fff;color:#444;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:box-shadow .15s}
+.btn-google:hover{box-shadow:0 2px 8px rgba(0,0,0,.15)}
+
+/* PUBLIC FORM */
+#form-page{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1rem;background:linear-gradient(135deg,var(--rosa-light) 0%,var(--bg) 60%)}
+.form-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:2rem;width:100%;max-width:480px;box-shadow:var(--shadow-md)}
+
+@media(max-width:640px){
+  .grid2{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .form-row-3{grid-template-columns:1fr 1fr}
+  .nav-name{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== SETUP SCREEN (first time) ===== -->
+<div id="setup-screen">
+  <div class="auth-card">
+    <div style="font-size:40px;margin-bottom:12px">🎂</div>
+    <h2 style="color:var(--rosa);margin-bottom:6px;font-size:22px">Configurar Firebase</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Cole as configurações do seu projeto Firebase para conectar o banco de dados.</p>
+    <div class="warn-box" style="text-align:left">Siga o passo a passo no final deste arquivo antes de preencher.</div>
+    <div class="form-group" style="text-align:left"><label class="form-label">API Key</label><input id="s-apiKey" placeholder="AIzaSy..."/></div>
+    <div class="form-group" style="text-align:left"><label class="form-label">Auth Domain</label><input id="s-authDomain" placeholder="projeto.firebaseapp.com"/></div>
+    <div class="form-group" style="text-align:left"><label class="form-label">Project ID</label><input id="s-projectId" placeholder="meu-crm-confeitaria"/></div>
+    <div class="form-group" style="text-align:left"><label class="form-label">App ID</label><input id="s-appId" placeholder="1:xxx:web:xxx"/></div>
+    <button class="btn-primary" onclick="saveFirebaseConfig()" style="width:100%;padding:10px;font-size:14px">Conectar ao Firebase</button>
+    <div id="setup-error" style="margin-top:10px;font-size:12px;color:#c0392b"></div>
+  </div>
+</div>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen">
+  <div class="auth-card">
+    <div id="login-logo-ph" style="font-size:40px;margin-bottom:12px">🎂</div>
+    <img id="login-logo-img" style="height:60px;border-radius:8px;display:none;margin:0 auto 12px" alt="Logo"/>
+    <h2 id="login-nome-conf" style="color:var(--rosa);margin-bottom:6px;font-size:22px">CRM Confeitaria</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:24px">Faça login para acessar o painel</p>
+    <button class="btn-google" id="btn-login" onclick="signInWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Entrar com Google
+    </button>
+    <div id="login-error" style="margin-top:12px;font-size:12px;color:#c0392b"></div>
+    <button onclick="resetFirebaseConfig()" style="margin-top:16px;font-size:11px;color:var(--text-muted);border:none;background:none;cursor:pointer">Reconfigurar Firebase</button>
+  </div>
+</div>
+
+<!-- ===== PUBLIC FORM ===== -->
+<div id="form-page">
+  <div class="form-card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.5rem">
+      <div id="fp-logo-ph" style="width:44px;height:44px;border-radius:50%;background:var(--rosa-light);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎂</div>
+      <img id="fp-logo-img" style="width:44px;height:44px;border-radius:50%;object-fit:cover;display:none" alt=""/>
+      <div>
+        <h1 id="fp-conf-nome" style="font-size:18px;color:var(--rosa)">Cadastre-se</h1>
+        <p style="font-size:12px;color:var(--text-muted)">Preencha seus dados para receber novidades!</p>
+      </div>
+    </div>
+    <!-- Step 1: Google login -->
+    <div id="fp-step-login">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;text-align:center">Para se cadastrar, faça login com sua conta Google:</p>
+      <div style="display:flex;justify-content:center">
+        <button class="btn-google" onclick="signInPublicForm()">
+          <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Continuar com Google
+        </button>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:12px;text-align:center">Usamos apenas para identificar você. Não publicamos nada.</p>
+    </div>
+    <!-- Step 2: Form -->
+    <div id="fp-step-form" style="display:none">
+      <div id="fp-user-info" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--verde-light);border-radius:var(--radius-sm);margin-bottom:14px;font-size:13px;color:var(--verde)"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nome completo *</label><input id="fp-nome" placeholder="Seu nome"/></div>
+        <div class="form-group"><label class="form-label">WhatsApp *</label><input id="fp-tel" placeholder="(11) 99999-9999" oninput="maskPhone(this)" maxlength="15"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">E-mail</label><input id="fp-email" type="email"/></div>
+        <div class="form-group"><label class="form-label">Aniversário</label><input id="fp-aniv" type="text" placeholder="DD/MM/AAAA" oninput="maskDate(this)" maxlength="10"/></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Como nos conheceu?</label>
+        <select id="fp-origem" style="max-width:220px">
+          <option value="">Não informado</option>
+          <option value="indicacao">Indicação de amigo/cliente</option>
+          <option value="exposicao">Exposição / Evento</option>
+          <option value="redes_sociais">Redes sociais</option>
+          <option value="outros">Outros</option>
+        </select>
+      </div>
+
+      <button class="btn-primary" onclick="submitPublicForm()" style="width:100%;padding:10px;font-size:14px;margin-top:8px">Enviar cadastro</button>
+    </div>
+    <!-- Step 3: Success -->
+    <div id="fp-step-success" style="display:none;text-align:center;padding:1.5rem 0">
+      <div style="font-size:48px;margin-bottom:12px">🎉</div>
+      <h2 style="color:var(--rosa);margin-bottom:8px">Cadastro realizado!</h2>
+      <p style="font-size:13px;color:var(--text-muted)">Obrigada! Em breve entraremos em contato com novidades especiais para você.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="main-app" style="display:none">
+<div id="nav">
+  <div class="nav-brand">
+    <div class="nav-logo-ph" id="logo-ph">🎂</div>
+    <img id="logo-img" class="nav-logo-img" alt=""/>
+    <span class="nav-name" id="brand-name">CRM Confeitaria</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('dashboard',this)">Painel</button>
+    <button class="nav-tab" onclick="showPage('clientes',this)">Clientes <span id="pend-badge"></span></button>
+    <button class="nav-tab" onclick="showPage('produtos',this)">Produtos</button>
+    <button class="nav-tab" onclick="showPage('empresas',this)">Empresas</button>
+    <button class="nav-tab" onclick="showPage('mensagens',this)">Mensagens</button>
+    <button class="nav-tab" id="tab-disparos" onclick="showPage('disparos',this)">📤 Disparos <span id="disparos-badge"></span></button>
+    <button class="nav-tab" onclick="showPage('config',this)">⚙ Config</button>
+  </div>
+  <div class="nav-right">
+    <a href="fichas_tecnicas.html" id="link-fichas" style="font-size:12px;color:var(--text-muted);text-decoration:none;padding:4px 9px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);white-space:nowrap">📋 Fichas Técnicas</a>
+    <span class="sync-dot-live" title="Dados sincronizados em tempo real"></span>
+    <img id="user-avatar" class="user-avatar" src="" alt="" onclick="signOut()" title="Clique para sair"/>
+  </div>
+</div>
+
+<div id="app">
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <h2 style="margin-bottom:16px;font-size:22px">Painel geral</h2>
+    <div class="metric-grid" id="metrics"></div>
+    <div class="grid2">
+      <div><div class="section-subtitle">Próximas datas (30 dias)</div><div id="upcoming-list"></div></div>
+      <div><div class="section-subtitle">Funil de vendas</div><div id="pipeline-list"></div></div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div id="page-clientes" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Clientes</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSV('clients')" style="font-size:12px">⬇ CSV</button>
+        <label style="padding:4px 10px;font-size:12px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);cursor:pointer">⬆ Importar CSV<input type="file" accept=".csv" onchange="importCSV(event,'clients')" style="display:none"/></label>
+        <button class="btn-primary btn-sm" onclick="openModal('client')">+ Novo cliente</button>
+      </div>
+    </div>
+    <div id="pending-section"></div>
+    <div class="filter-bar">
+      <input id="cl-search" placeholder="Nome, telefone, e-mail..." style="max-width:240px" oninput="renderClientes()"/>
+      <select id="cl-stage" onchange="renderClientes()" style="max-width:170px">
+        <option value="">Todos os estágios</option>
+        <option>Novo lead</option><option>Contato feito</option>
+        <option>Proposta enviada</option><option>Cliente ativo</option><option>Inativo</option>
+      </select>
+    </div>
+    <div id="cl-count" style="font-size:12px;color:var(--text-muted);margin-bottom:10px"></div>
+    <div id="client-list"></div>
+  </div>
+
+  <!-- PRODUTOS -->
+  <div id="page-produtos" class="page">
+    <div style="background:var(--azul-light);border:1px solid #aecbfa;border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--azul)">📋 Fichas Técnicas de Produtos</div>
+        <div style="font-size:12px;color:#1557b0;margin-top:2px">Gerencie ingredientes, bases, custos e precificação no módulo dedicado</div>
+      </div>
+      <a href="fichas_tecnicas.html" style="background:var(--azul);color:#fff;padding:7px 16px;border-radius:var(--radius-sm);text-decoration:none;font-size:13px;white-space:nowrap;font-family:'DM Sans',sans-serif">Abrir Fichas Técnicas →</a>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Produtos</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSVProdutos()" style="font-size:12px">⬇ CSV</button>
+        <a href="fichas_tecnicas.html" style="background:var(--rosa);color:#fff;padding:5px 14px;border-radius:var(--radius-sm);text-decoration:none;font-size:13px;font-family:inherit;white-space:nowrap">+ Gerenciar em Fichas Técnicas ↗</a>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input id="pr-search" placeholder="Nome, categoria, sabor..." style="max-width:240px" oninput="renderProdutos()"/>
+      <select id="pr-cat" onchange="renderProdutos()" style="max-width:160px">
+        <option value="">Todas as categorias</option>
+        <option>Bolo</option><option>Docinho</option><option>Torta</option>
+        <option>Cupcake</option><option>Bem-casado</option><option>Outro</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>SKU</th><th>Categoria</th><th>Nome comercial</th><th>Tamanho</th><th>Preço venda</th><th>Encomenda</th><th>Status</th><th></th></tr></thead>
+        <tbody id="produto-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- EMPRESAS -->
+  <div id="page-empresas" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Empresas</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSV('empresas')" style="font-size:12px">⬇ CSV</button>
+        <label style="padding:4px 10px;font-size:12px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);cursor:pointer">⬆ Importar CSV<input type="file" accept=".csv" onchange="importCSV(event,'empresas')" style="display:none"/></label>
+        <button class="btn-primary btn-sm" onclick="openModal('empresa')">+ Nova empresa</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input id="em-search" placeholder="Nome, contato..." style="max-width:240px" oninput="renderEmpresas()"/>
+      <select id="em-stage" onchange="renderEmpresas()" style="max-width:170px">
+        <option value="">Todos os estágios</option>
+        <option>Prospecção</option><option>Contato feito</option><option>Proposta enviada</option>
+        <option>Confirmada</option><option>Realizada</option><option>Inativa</option>
+      </select>
+    </div>
+    <div id="empresa-list"></div>
+  </div>
+
+  <!-- MENSAGENS -->
+  <div id="page-mensagens" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px">
+      <h2 style="font-size:22px">Mensagens</h2>
+      <button class="btn-primary btn-sm" onclick="openModal('template')">+ Novo modelo</button>
+    </div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+      <label class="form-label">Personalizar para cliente:</label>
+      <select id="msg-client" onchange="renderMensagens()" style="max-width:280px"><option value="">Selecionar...</option></select>
+      <div id="msg-client-info" style="margin-top:6px;font-size:12px;color:var(--text-muted)"></div>
+    </div>
+    <div id="msg-list"></div>
+  </div>
+
+  <!-- DISPAROS -->
+  <div id="page-disparos" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Central de Disparos</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="disp-periodo" onchange="renderDisparos()" style="max-width:160px">
+          <option value="hoje">Hoje</option>
+          <option value="7" selected>Próximos 7 dias</option>
+          <option value="14">Próximos 14 dias</option>
+          <option value="30">Próximos 30 dias</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="disp-so-pendentes" onchange="renderDisparos()" style="width:auto"/> Só pendentes
+        </label>
+        <button class="btn-sm" onclick="markAllSent()" style="color:var(--verde);border-color:var(--verde)">✓ Marcar todos como enviado</button>
+      </div>
+    </div>
+    <div id="disp-summary" style="margin-bottom:14px"></div>
+    <div id="disp-list"></div>
+  </div>
+
+  <!-- CONFIG -->
+  <div id="page-config" class="page">
+    <h2 style="margin-bottom:16px;font-size:22px">Configurações</h2>
+
+    <div class="settings-panel">
+      <h3 style="font-size:15px;margin-bottom:10px">Identidade da confeitaria</h3>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nome</label><input id="cfg-nome" placeholder="Confeitaria da Mari"/></div>
+        <div class="form-group"><label class="form-label">WhatsApp</label><input id="cfg-wa" placeholder="11987654321"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Logo — URL</label><input id="cfg-logo-url" oninput="previewLogoUrl()"/></div>
+      <div class="form-group"><label class="form-label">Logo — Upload</label><input type="file" accept="image/*" onchange="uploadLogo(event)" style="padding:6px"/></div>
+      <div id="logo-prev" style="display:none;margin-bottom:10px"><img id="logo-prev-img" style="height:56px;border-radius:8px;border:1px solid var(--cinza-border);padding:4px;background:#fff"/></div>
+      <button class="btn-primary btn-sm" onclick="saveConfigDB()">Salvar identidade</button>
+    </div>
+
+    <div class="settings-panel">
+      <h3 style="font-size:15px;margin-bottom:8px">Equipe — Acesso ao painel</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Adicione os e-mails Gmail de quem pode acessar o CRM. O seu já está incluído.</p>
+      <div id="team-list" style="margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <input id="new-email" type="email" placeholder="email@gmail.com" style="max-width:280px"/>
+        <button onclick="addTeamMember()">+ Adicionar</button>
+      </div>
+    </div>
+
+    <div class="settings-panel">
+      <h3 style="font-size:15px;margin-bottom:8px">📋 Formulário público de cadastro</h3>
+      <div class="info-box">
+        Link para clientes: <strong id="form-link" style="font-family:monospace;word-break:break-all"></strong><br/>
+        Cadastros chegam em <strong>Clientes → Pendentes</strong> para aprovação.
+      </div>
+    </div>
+
+    <div class="settings-panel">
+      <h3 style="font-size:15px;margin-bottom:8px">Backup</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportAllJSON()">⬇ Exportar tudo (JSON)</button>
+        <button onclick="exportCSV('clients')">⬇ Clientes CSV</button>
+        <button onclick="exportCSV('produtos')">⬇ Produtos CSV</button>
+      </div>
+    </div>
+
+    <div class="settings-panel">
+      <h3 style="font-size:15px;margin-bottom:8px">Migração de dados anteriores</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Se você usava o CRM antes do Firebase (versões anteriores), clique aqui para tentar migrar os dados salvos neste navegador.</p>
+      <button onclick="localStorage.removeItem('crm_migrated_to_firebase');checkLocalStorageMigration();" class="btn-sm">🔄 Verificar dados para migrar</button>
+    </div>
+    <div class="settings-panel">
+      <h3 style="font-size:15px;margin-bottom:6px;color:#c0392b">Zona de perigo</h3>
+      <button class="btn-danger btn-sm" onclick="signOut()">Sair da conta</button>
+      &nbsp;
+      <button class="btn-danger btn-sm" onclick="resetFirebaseConfig()">Reconfigurar Firebase</button>
+    </div>
+  </div>
+</div>
+</div><!-- /main-app -->
+
+<!-- MODAL -->
+<div id="modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title"></span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   CONSTANTS
+================================================================ */
+const PIPELINE_CLI=["Novo lead","Contato feito","Proposta enviada","Cliente ativo","Inativo"];
+const PIPELINE_EMP=["Prospecção","Contato feito","Proposta enviada","Confirmada","Realizada","Inativa"];
+const PIPELINE_COLORS={"Novo lead":"#378ADD","Contato feito":"#c8820a","Proposta enviada":"#b5536a","Cliente ativo":"#3a7d5a","Inativo":"#888","Prospecção":"#7F77DD","Confirmada":"#1D9E75","Realizada":"#3a7d5a","Inativa":"#888"};
+const TAMANHOS=["Baby","PP","P","M","G","GG","GGG"];
+const PREFS_DEFAULT=["Bolo personalizado","Docinhos","Torta","Cupcake","Bem-casados","Brownie","Paçoca","Alfajor"];
+const RELACOES=["Filho(a)","Cônjuge","Namorado(a)","Mãe","Pai","Irmão/Irmã","Amigo(a)","Outro"];
+const OCASIOES=["Aniversário","Casamento","Namoro","Formatura","Festinha","Dia das Mães","Dia dos Pais","Outro"];
+const AVATAR_COLORS=["#7F77DD","#1D9E75","#D4537E","#378ADD","#BA7517","#D85A30","#b5536a","#3a7d5a"];
+const DEFAULT_TEMPLATES=[
+  {id:"t1",titulo:"Aniversário do cliente",mensagem:"Olá [Nome]! 🎂 Seu aniversário está chegando! Que tal um bolo personalizado feito com muito carinho? Me chama! 🍰"},
+  {id:"t2",titulo:"Data especial",mensagem:"Oi [Nome]! 💕 Uma data especial está chegando! Podemos criar algo delicioso para celebrar?"},
+  {id:"t3",titulo:"Aniversário de [Pessoa]",mensagem:"Oi [Nome]! 🎈 O aniversário de [NomePessoa] está chegando! Vamos criar algo especial juntos? 🎂"},
+  {id:"t4",titulo:"Follow-up — lead novo",mensagem:"Olá [Nome]! Aqui é da [Confeitaria]. Posso te apresentar nossas opções? Bolos, docinhos e muito mais! 🍬"},
+  {id:"t5",titulo:"Reativação",mensagem:"Oi [Nome]! Tá com saudade dos nossos doces? 😄 Temos novidades! Me chama. 🎂"},
+];
+
+/* ================================================================
+   STATE
+================================================================ */
+let db=null,auth=null,currentUser=null,appConfig={};
+let allClients=[],allProdutos=[],allEmpresas=[],allTemplates=[],allCategorias=[],allSabores=[],allPending=[];
+let editingId=null,tempOcasioes=[],tempExposicoes=[],tempCliProds=[];
+const isFormMode=new URLSearchParams(location.search).get("form")==="1";
+
+/* ================================================================
+   UTILS
+================================================================ */
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
+function initials(n){return(n||"").split(" ").slice(0,2).map(x=>x[0]||"").join("").toUpperCase()||"?"}
+function avatarColor(n){return AVATAR_COLORS[(n||"").charCodeAt(0)%AVATAR_COLORS.length]}
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function emojiOcasiao(o){return{"Aniversário":"🎂","Casamento":"💕","Namoro":"💑","Formatura":"🎓","Festinha":"🎈","Dia das Mães":"🌸","Dia dos Pais":"👔"}[o]||"✨"}
+function formatDate(s){if(!s)return"—";const p=s.split("-");return(p[2]||"")+"/"+(p[1]||"")}
+function formatCurrency(v){return"R$ "+parseFloat(v||0).toFixed(2).replace(".",",")}
+function markup(p,c){const pv=parseFloat(p)||0,cv=parseFloat(c)||0;if(!cv)return"—";return((pv-cv)/cv*100).toFixed(1)+"%"}
+function markupColor(p,c){const pv=parseFloat(p)||0,cv=parseFloat(c)||0;if(!cv)return"var(--text-muted)";const m=(pv-cv)/cv*100;return m>=50?"var(--verde)":m>=25?"var(--amarelo)":"#c0392b"}
+function maskPhone(el){let v=el.value.replace(/\D/g,"").slice(0,11);v=v.length<=10?v.replace(/(\d{2})(\d{4})(\d{0,4})/,"($1) $2-$3"):v.replace(/(\d{2})(\d{5})(\d{0,4})/,"($1) $2-$3");el.value=v.replace(/-$/,"")}
+function maskDate(el){
+  let v=el.value.replace(/\D/g,"").slice(0,8);
+  if(v.length>4)v=v.slice(0,2)+"/"+v.slice(2,4)+"/"+v.slice(4);
+  else if(v.length>2)v=v.slice(0,2)+"/"+v.slice(2);
+  el.value=v;
+}
+function toISO(dmy){
+  if(!dmy)return"";
+  // already ISO
+  if(/^\d{4}-\d{2}-\d{2}$/.test(dmy))return dmy;
+  const p=dmy.split("/");
+  if(p.length===3&&p[2].length===4)return`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
+  return"";
+}
+function toDMY(iso){
+  if(!iso)return"";
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(iso))return iso;
+  const p=iso.split("-");
+  if(p.length===3)return`${p[2]}/${p[1]}/${p[0]}`;
+  return"";
+}
+function daysTill(s){
+  if(!s)return null;
+  const t=new Date();t.setHours(0,0,0,0);
+  const p=s.split("-");let nx=new Date(t.getFullYear(),parseInt(p[1])-1,parseInt(p[2]));
+  if(nx<t)nx=new Date(t.getFullYear()+1,parseInt(p[1])-1,parseInt(p[2]));
+  return Math.round((nx-t)/864e5);
+}
+function showToast(msg,type){
+  let t=document.getElementById("_toast");
+  if(!t){t=document.createElement("div");t.id="_toast";t.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:99px;font-size:13px;z-index:9999;transition:opacity .3s;white-space:nowrap;pointer-events:none";document.body.appendChild(t);}
+  t.style.background=type==="err"?"#c0392b":type==="info"?"#1a73e8":"#2a2a2a";
+  t.style.color="#fff";t.textContent=msg;t.style.opacity="1";t.style.display="block";
+  const dur=type==="err"?8000:3000;clearTimeout(t._t);t._t=setTimeout(()=>{t.style.opacity="0";setTimeout(()=>t.style.display="none",300)},dur);
+}
+function getProduto(id){return allProdutos.find(p=>p.id===id)}
+function getEmpresa(id){return allEmpresas.find(e=>e.id===id)}
+function getClientByPhone(tel){return allClients.find(c=>c.telefone===tel)}
+function nextId(arr,prefix){
+  if(!arr.length)return prefix+"001";
+  const nums=arr.map(x=>parseInt((x.id||"0").replace(/\D/g,"")||0));
+  return prefix+String(Math.max(...nums)+1).padStart(3,"0");
+}
+
+/* ================================================================
+   FIREBASE INIT
+================================================================ */
+// ============================================================
+// FIREBASE CONFIG — edite aqui se precisar trocar de projeto
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDdP4UH5_o_gzuYLeVG0ruxkRoeW5aAlxE",
+  authDomain: "crm-confeitaria-de0fe.firebaseapp.com",
+  projectId: "crm-confeitaria-de0fe",
+  appId: "1:713356973364:web:341b74f629e5fa48290161"
+};
+// ============================================================
+
+function getStoredFBConfig(){
+  return FIREBASE_CONFIG;
+}
+function initFirebase(cfg){
+  if(firebase.apps.length)return true;
+  try{firebase.initializeApp(cfg);db=firebase.firestore();auth=firebase.auth();return true;}catch(e){return false;}
+}
+
+async function saveFirebaseConfig(){
+  const cfg={apiKey:v("s-apiKey"),authDomain:v("s-authDomain"),projectId:v("s-projectId"),appId:v("s-appId")};
+  if(!cfg.apiKey||!cfg.projectId){document.getElementById("setup-error").textContent="Preencha todos os campos.";return;}
+  if(!initFirebase(cfg)){document.getElementById("setup-error").textContent="Configuração inválida. Verifique os dados.";return;}
+  localStorage.setItem("crm_fb_config",JSON.stringify(cfg));
+  document.getElementById("setup-screen").style.display="none";
+  document.getElementById("login-screen").style.display="flex";
+  startAuth();
+}
+function v(id){return(document.getElementById(id)||{}).value?.trim()||""}
+function resetFirebaseConfig(){localStorage.removeItem("crm_fb_config");location.reload();}
+
+/* ================================================================
+   AUTH
+================================================================ */
+function startAuth(){
+  auth.onAuthStateChanged(async user=>{
+    if(!user){
+      document.getElementById("login-screen").style.display="flex";
+      document.getElementById("main-app").style.display="none";
+      return;
+    }
+    // Load config first to check team
+    await loadConfig();
+    const allowed=appConfig.authorizedEmails||[];
+    if(allowed.length>0&&!allowed.includes(user.email)){
+      auth.signOut();
+      document.getElementById("login-error").textContent=`Acesso negado para ${user.email}. Peça para ser adicionado à equipe.`;
+      document.getElementById("login-screen").style.display="flex";
+      return;
+    }
+    currentUser=user;
+    const av=document.getElementById("user-avatar");
+    if(av&&user.photoURL){av.src=user.photoURL;av.style.display="block";}
+    document.getElementById("login-screen").style.display="none";
+    document.getElementById("main-app").style.display="block";
+    applyConfig();
+    startListeners();
+    renderDashboard();
+    // Check for legacy localStorage data to migrate
+    setTimeout(checkLocalStorageMigration, 2000);
+  });
+}
+function signInWithGoogle(){
+  const provider=new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e=>{document.getElementById("login-error").textContent=e.message;});
+}
+function signOut(){if(confirm("Sair da conta?"))auth.signOut();}
+
+/* PUBLIC FORM AUTH */
+function signInPublicForm(){
+  const provider=new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).then(r=>{
+    const u=r.user;
+    document.getElementById("fp-step-login").style.display="none";
+    document.getElementById("fp-step-form").style.display="block";
+    document.getElementById("fp-user-info").innerHTML=`<img src="${u.photoURL||""}" style="width:24px;height:24px;border-radius:50%;margin-right:6px"/> Logado como <strong style="margin-left:4px">${esc(u.displayName)}</strong>`;
+    const ne=document.getElementById("fp-nome"),ee=document.getElementById("fp-email");
+    if(ne&&!ne.value)ne.value=u.displayName||"";
+    if(ee&&!ee.value)ee.value=u.email||"";
+  }).catch(e=>showToast(e.message,"err"));
+}
+
+/* ================================================================
+   FIRESTORE LISTENERS (real-time)
+================================================================ */
+function startListeners(){
+  db.collection("clients").orderBy("criadoEm","desc").onSnapshot(snap=>{
+    allClients=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderClientes();renderDashboard();updatePendingUI();updateDisparosBadge();
+  });
+  db.collection("skus").orderBy("nomeComercial").onSnapshot(snap=>{
+    allProdutos=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderProdutos();populateProdCatFilter();
+  });
+  db.collection("empresas").orderBy("nome").onSnapshot(snap=>{
+    allEmpresas=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderEmpresas();
+  });
+  db.collection("msgTemplates").orderBy("titulo").onSnapshot(snap=>{
+    allTemplates=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(!allTemplates.length)seedTemplates();
+    else renderMensagens();
+  });
+  db.collection("categorias").onSnapshot(snap=>{
+    allCategorias=snap.docs.map(d=>d.data().nome||d.id);
+    if(!allCategorias.length)seedCategorias();
+    populateProdCatFilter();
+  });
+  db.collection("sabores").onSnapshot(snap=>{
+    allSabores=snap.docs.map(d=>d.data().nome||d.id);
+    if(!allSabores.length)seedSabores();
+  });
+  db.collection("pendingForms").onSnapshot(snap=>{
+    allPending=snap.docs.map(d=>({id:d.id,...d.data()}));
+    updatePendingUI();
+  });
+  db.collection("config").doc("main").onSnapshot(snap=>{
+    if(snap.exists){appConfig={...snap.data()};applyConfig();}
+  });
+}
+
+async function seedTemplates(){
+  for(const t of DEFAULT_TEMPLATES)await db.collection("msgTemplates").doc(t.id).set(t);
+}
+async function seedCategorias(){
+  const cats=["Bolo","Docinho","Torta","Cupcake","Bem-casado","Brownie","Outro"];
+  for(const c of cats)await db.collection("categorias").add({nome:c});
+}
+async function seedSabores(){
+  const sabs=["Chocolate","Baunilha","Morango","Limão","Red Velvet","Maracujá","Caramelo","Outro"];
+  for(const s of sabs)await db.collection("sabores").add({nome:s});
+}
+
+/* ================================================================
+   CONFIG
+================================================================ */
+async function loadConfig(){
+  try{const snap=await db.collection("config").doc("main").get();if(snap.exists)appConfig={...snap.data()};}catch(e){}
+}
+function applyConfig(){
+  const nome=appConfig.nome||"CRM Confeitaria";
+  document.title=nome;
+  const bn=document.getElementById("brand-name");if(bn)bn.textContent=nome;
+  const logo=appConfig.logo;
+  if(logo){
+    const li=document.getElementById("logo-img");if(li){li.src=logo;li.style.display="block";}
+    const lp=document.getElementById("logo-ph");if(lp)lp.style.display="none";
+    const fli=document.getElementById("fp-logo-img");if(fli){fli.src=logo;fli.style.display="block";const flp=document.getElementById("fp-logo-ph");if(flp)flp.style.display="none";}
+  }
+  const fcn=document.getElementById("fp-conf-nome");if(fcn)fcn.textContent=nome;
+  // populate config inputs
+  const el=(id,val)=>{const e=document.getElementById(id);if(e&&val!==undefined)e.value=val;};
+  el("cfg-nome",appConfig.nome||"");el("cfg-wa",appConfig.wa||"");
+  if(appConfig.logo&&!appConfig.logo.startsWith("data:"))el("cfg-logo-url",appConfig.logo);
+  if(appConfig.logo)showLogoPreview(appConfig.logo);
+  // team list
+  renderTeamList();
+  // form link
+  const fl=document.getElementById("form-link");if(fl)fl.textContent=location.origin+location.pathname+"?form=1";
+}
+async function saveConfigDB(){
+  const nome=v("cfg-nome")||appConfig.nome;
+  const wa=v("cfg-wa")||appConfig.wa;
+  const url=v("cfg-logo-url");
+  const upd={nome,wa};
+  if(url&&!url.startsWith("data:"))upd.logo=url;
+  if(appConfig.logo&&appConfig.logo.startsWith("data:"))upd.logo=appConfig.logo;
+  if(!appConfig.authorizedEmails)upd.authorizedEmails=[currentUser.email];
+  await db.collection("config").doc("main").set({...appConfig,...upd},{merge:true});
+  showToast("Identidade salva!");
+}
+function showLogoPreview(s){const p=document.getElementById("logo-prev"),i=document.getElementById("logo-prev-img");if(p&&i){p.style.display="block";i.src=s;}}
+function previewLogoUrl(){const u=v("cfg-logo-url");if(u)showLogoPreview(u);}
+function uploadLogo(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{appConfig.logo=ev.target.result;showLogoPreview(ev.target.result);db.collection("config").doc("main").set({logo:ev.target.result},{merge:true});showToast("Logo salvo!");};r.readAsDataURL(f);}
+
+/* TEAM */
+function renderTeamList(){
+  const list=document.getElementById("team-list");if(!list)return;
+  const emails=appConfig.authorizedEmails||[];
+  if(!emails.length){list.innerHTML=`<div style="font-size:13px;color:var(--text-muted)">Nenhum membro adicionado. Salve a identidade para registrar seu e-mail automaticamente.</div>`;return;}
+  list.innerHTML=emails.map(email=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--cinza-light);border-radius:var(--radius-sm);margin-bottom:6px">
+    <span style="font-size:13px">${esc(email)}${email===currentUser?.email?' <span class="badge" style="background:#e8f4ee;color:var(--verde)">você</span>':""}</span>
+    ${email!==currentUser?.email?`<button class="btn-sm btn-danger" onclick="removeTeamMember('${email}')">✕</button>`:""}
+  </div>`).join("");
+}
+async function addTeamMember(){
+  const email=v("new-email");
+  if(!email||!email.includes("@"))return alert("E-mail inválido.");
+  const emails=[...(appConfig.authorizedEmails||[])];
+  if(!emails.includes(currentUser.email))emails.unshift(currentUser.email);
+  if(!emails.includes(email))emails.push(email);
+  await db.collection("config").doc("main").set({authorizedEmails:emails},{merge:true});
+  document.getElementById("new-email").value="";
+  showToast("Membro adicionado!");
+}
+async function removeTeamMember(email){
+  if(!confirm(`Remover ${email}?`))return;
+  const emails=(appConfig.authorizedEmails||[]).filter(e=>e!==email);
+  await db.collection("config").doc("main").set({authorizedEmails:emails},{merge:true});
+}
+
+/* ================================================================
+   NAVIGATION
+================================================================ */
+function showPage(id,btn){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav-tab").forEach(b=>b.classList.remove("active"));
+  document.getElementById("page-"+id).classList.add("active");
+  if(btn)btn.classList.add("active");
+  if(id==="config")applyConfig();
+  if(id==="disparos")renderDisparos();
+}
+
+/* ================================================================
+   PENDING FORMS
+================================================================ */
+function updatePendingUI(){
+  const n=allPending.length;
+  const badge=document.getElementById("pend-badge");
+  if(badge)badge.innerHTML=n>0?`<span class="pending-badge">${n}</span>`:"";
+  const sec=document.getElementById("pending-section");if(!sec)return;
+  if(!n){sec.innerHTML="";return;}
+  sec.innerHTML=`<div style="background:var(--rosa-light);border:1px solid #e8b4c0;border-radius:var(--radius);padding:14px 16px;margin-bottom:14px">
+    <div style="font-weight:500;color:var(--rosa);margin-bottom:10px">🔔 ${n} cadastro(s) do formulário público aguardando aprovação</div>
+    ${allPending.map(f=>`<div style="background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div style="font-weight:500;font-size:13px">${esc(f.nome)}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${esc(f.telefone)} · ${esc(f.email||"")}${f.origem?" · "+esc(f.origem):""}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${(f.preferencias||[]).join(", ")}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-sm btn-success" onclick="approvePending('${f.id}')">✓ Aprovar</button>
+        <button class="btn-sm btn-danger" onclick="rejectPending('${f.id}')">✕ Rejeitar</button>
+      </div>
+    </div>`).join("")}
+  </div>`;
+}
+async function approvePending(id){
+  const f=allPending.find(x=>x.id===id);if(!f)return;
+  const nc={nome:f.nome,telefone:f.telefone,email:f.email||"",aniversario:f.aniversario||"",pipeline:"Novo lead",preferencias:f.preferencias||[],ocasioes:[],produtos:[],indicadoPor:"",empresaId:"",notas:"Cadastrado pelo formulário público."+(f.origem?"\nOrigem: "+f.origem:""),criadoEm:new Date().toISOString().slice(0,10),msgStatus:{}};
+  await db.collection("clients").add(nc);
+  await db.collection("pendingForms").doc(id).delete();
+  showToast("Cliente aprovado!");
+}
+async function rejectPending(id){
+  if(!confirm("Rejeitar este cadastro?"))return;
+  await db.collection("pendingForms").doc(id).delete();
+}
+
+/* ================================================================
+   DASHBOARD
+================================================================ */
+function renderDashboard(){
+  const today=new Date();today.setHours(0,0,0,0);
+  const thisMonth=today.getMonth();
+  const upcoming=[];
+  allClients.forEach(c=>{
+    const add=(tipo,dias,key)=>{if(dias!==null&&dias<=30)upcoming.push({id:c.id,nome:c.nome,tipo,dias,tel:c.telefone,pipeline:c.pipeline,key,sent:!!(c.msgStatus&&c.msgStatus[key])});};
+    if(c.aniversario)add("🎂 Aniversário",daysTill(c.aniversario),"aniv");
+    (c.ocasioes||[]).forEach((o,i)=>{if(o.data)add(`${emojiOcasiao(o.ocasiao)} ${o.ocasiao} — ${o.pessoa}`,daysTill(o.data),"oc"+i);});
+  });
+  upcoming.sort((a,b)=>a.dias-b.dias||(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const ativos=allClients.filter(c=>c.pipeline==="Cliente ativo").length;
+  const novos=allClients.filter(c=>c.criadoEm&&new Date(c.criadoEm).getMonth()===thisMonth).length;
+  const m=document.getElementById("metrics");if(!m)return;
+  m.innerHTML=`
+    <div class="metric-card"><div class="metric-label">Total clientes</div><div class="metric-value">${allClients.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Clientes ativos</div><div class="metric-value" style="color:var(--verde)">${ativos}</div></div>
+    <div class="metric-card"><div class="metric-label">Novos este mês</div><div class="metric-value" style="color:var(--azul)">${novos}</div></div>
+    <div class="metric-card"><div class="metric-label">Produtos</div><div class="metric-value" style="color:var(--amarelo)">${allProdutos.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Alertas 30 dias</div><div class="metric-value" style="color:var(--rosa)">${upcoming.length}</div></div>`;
+
+  const ul=document.getElementById("upcoming-list");if(!ul)return;
+  ul.innerHTML=upcoming.length===0?'<div class="empty">Nenhuma data nos próximos 30 dias</div>':
+    upcoming.map(u=>{
+      const cls=u.dias<=3?"urgente":u.dias<=10?"proximo":"ok";
+      const bc=u.dias<=3?"var(--rosa)":u.dias<=10?"var(--amarelo)":"var(--verde)";
+      const lbl=u.dias===0?"hoje":u.dias===1?"amanhã":`em ${u.dias} dias`;
+      const pc=PIPELINE_COLORS[u.pipeline]||"#888";
+      return`<div class="alert-card" style="border-left-color:${bc}">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:500;font-size:13px">${esc(u.nome)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:1px">${u.tipo}</div>
+            <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+              <span class="badge" style="background:${pc}22;color:${pc}">${u.pipeline}</span>
+              <button class="msg-status ${u.sent?"sent":"pending"}" onclick="toggleMsgStatus('${u.id}','${u.key}',this)">${u.sent?"✓ Msg enviada":"○ Marcar enviada"}</button>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:500;color:${bc}">${lbl}</div>
+            ${u.tel?`<a href="https://wa.me/55${u.tel.replace(/\D/g,"")}" target="_blank" style="font-size:11px;color:#25d366;text-decoration:none">WhatsApp ↗</a>`:""}
+            <button onclick="verClientePainel('${u.id}')" style="margin-top:4px;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--cinza-border);background:transparent;cursor:pointer;color:var(--text-muted);display:block;width:100%;text-align:center">Ver cliente</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+
+  const pl=document.getElementById("pipeline-list");if(!pl)return;
+  pl.innerHTML=PIPELINE_CLI.map(p=>{
+    const cnt=allClients.filter(c=>c.pipeline===p).length;
+    const pct=allClients.length?Math.round(cnt/allClients.length*100):0;
+    return`<div style="background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:9px 13px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:${PIPELINE_COLORS[p]}"></div><span style="font-size:13px">${p}</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:60px;height:4px;background:var(--cinza-border);border-radius:99px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${PIPELINE_COLORS[p]};border-radius:99px"></div></div>
+        <span style="font-size:16px;font-family:'Playfair Display',serif;color:${PIPELINE_COLORS[p]};min-width:18px;text-align:right">${cnt}</span>
+      </div>
+    </div>`;}).join("");
+}
+
+async function verClientePainel(clienteId){
+  // Navigate to clientes tab and open edit modal for this client
+  const tab=document.querySelector('.nav-tab:nth-child(2)');
+  showPage('clientes',tab);
+  setTimeout(()=>openModal('client',clienteId),300);
+}
+
+async function toggleMsgStatus(clienteId,key,btn){
+  const c=allClients.find(x=>x.id===clienteId);if(!c)return;
+  const msgStatus={...(c.msgStatus||{})};msgStatus[key]=!msgStatus[key];
+  await db.collection("clients").doc(clienteId).update({msgStatus});
+  btn.className="msg-status "+(msgStatus[key]?"sent":"pending");
+  btn.textContent=msgStatus[key]?"✓ Msg enviada":"○ Marcar enviada";
+}
+
+/* ================================================================
+   CLIENTES
+================================================================ */
+function renderClientes(){
+  updatePendingUI();
+  const q=v("cl-search"),st=v("cl-stage");
+  const f=allClients.filter(c=>{
+    const qm=!q||c.nome.toLowerCase().includes(q.toLowerCase())||c.telefone.includes(q)||(c.email||"").toLowerCase().includes(q.toLowerCase());
+    return qm&&(!st||c.pipeline===st);
+  }).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const cnt=document.getElementById("cl-count");if(cnt)cnt.textContent=f.length+" cliente(s) encontrado(s)";
+  const list=document.getElementById("client-list");if(!list)return;
+  list.innerHTML=f.length===0?'<div class="empty">Nenhum cliente encontrado</div>':f.map(renderClientCard).join("");
+}
+function renderClientCard(c){
+  const col=avatarColor(c.nome);
+  const pc=PIPELINE_COLORS[c.pipeline]||"#888";
+  const ref=c.indicadoPor?allClients.find(x=>x.id===c.indicadoPor):null;
+  const emp=c.empresaId?getEmpresa(c.empresaId):null;
+  const origemLabel={"indicacao":"Indicação","exposicao":"Exposição","redes_sociais":"Redes sociais","outros":"Outros"}[c.origem]||"";
+  const prods=(c.produtos||[]).map(pid=>{const p=getProduto(pid);return p?`<span class="tag">${esc(p.nomeComercial||p.nome||"")}</span>`:""}).join("");
+  const prefs="";
+  const aniv=c.aniversario?`<span style="font-size:11px;color:var(--text-muted)">🎂 ${formatDate(c.aniversario)}</span>`:"";
+  const ocs=(c.ocasioes||[]).map(o=>`<span style="font-size:11px;color:var(--text-muted)">${emojiOcasiao(o.ocasiao)} ${esc(o.pessoa)} ${formatDate(o.data)}</span>`).join(" ");
+  const extras=(aniv||ocs||prefs||prods)?`<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--cinza-border);display:flex;gap:5px;flex-wrap:wrap;align-items:center">${aniv} ${ocs} ${prefs} ${prods}</div>`:"";
+  return`<div class="data-card">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="avatar" style="background:${col}22;color:${col}">${initials(c.nome)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;font-size:14px">${esc(c.nome)}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:1px">${c.telefone?`<span style="margin-right:8px">${esc(c.telefone)}</span>`:""}${c.email?esc(c.email):""}</div>
+        <div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap">
+          ${origemLabel?`<span class="tag">${c.origem==="indicacao"?"👤":c.origem==="exposicao"?"🏢":c.origem==="redes_sociais"?"📱":"🔍"} ${esc(origemLabel)}</span>`:""}
+          ${ref?`<span class="tag" style="color:var(--verde)">↳ ${esc(ref.nome.split(" ")[0])}</span>`:""}
+          ${emp?`<span class="tag" style="color:var(--azul)">↳ ${esc(emp.nome)}</span>`:""}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+        <span class="badge" style="background:${pc}22;color:${pc}">${c.pipeline}</span>
+        <button class="btn-sm" onclick="openModal('client','${c.id}')">Editar</button>
+        <button class="btn-sm btn-danger" onclick="deleteDoc('clients','${c.id}')">✕</button>
+      </div>
+    </div>${extras}
+  </div>`;
+}
+
+/* ================================================================
+   PRODUTOS
+================================================================ */
+function populateProdCatFilter(){
+  // Categories are static options in the HTML for SKUs
+}
+function renderProdutos(){
+  const q=(v("pr-search")||"").toLowerCase(),cat=v("pr-cat");
+  const soAtivos=true; // show all by default
+  const f=allProdutos.filter(p=>{
+    const qm=!q||p.nomeComercial?.toLowerCase().includes(q)||p.sku?.toLowerCase().includes(q)||p.categoria?.toLowerCase().includes(q);
+    const cm=!cat||p.categoria===cat;
+    return qm&&cm;
+  }).sort((a,b)=>(a.nomeComercial||"").localeCompare(b.nomeComercial||"","pt-BR"));
+  const tb=document.getElementById("produto-list");if(!tb)return;
+  tb.innerHTML=f.length===0?`<tr><td colspan="9" class="empty">Nenhum produto cadastrado. Gere SKUs nas <a href="fichas_tecnicas.html" style="color:var(--azul)">Fichas Técnicas</a>.</td></tr>`:
+    f.map(p=>`<tr>
+      <td><span style="font-family:monospace;font-size:12px;background:var(--cinza-light);padding:2px 6px;border-radius:4px">${esc(p.sku||"—")}</span></td>
+      <td>${esc(p.categoria||"")}</td>
+      <td style="font-weight:500">
+        <div style="display:flex;align-items:center;gap:8px">
+          ${p.foto?`<img src="${esc(p.foto)}" style="width:28px;height:28px;object-fit:cover;border-radius:4px;flex-shrink:0"/>`:`<div style="width:28px;height:28px;background:var(--cinza-light);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">🎂</div>`}
+          ${esc(p.nomeComercial||"")}
+        </div>
+      </td>
+      <td><span class="tag">${esc(p.tamanho||"")}</span></td>
+      <td style="font-weight:500;color:var(--rosa)">${formatCurrency(p.precoVenda)}</td>
+      <td>${p.encomenda?p.encomenda+"h":"—"}</td>
+      <td>${p.ativo===false?`<span class="badge" style="background:#f5f4f2;color:#888">Inativo</span>`:`<span class="badge" style="background:var(--verde-light);color:var(--verde)">Ativo</span>`}</td>
+      <td style="white-space:nowrap">
+        <a href="fichas_tecnicas.html" class="btn-sm" style="text-decoration:none;display:inline-block">Editar ↗</a>
+      </td></tr>`).join("");
+}
+
+/* ================================================================
+   EMPRESAS
+================================================================ */
+function renderEmpresas(){
+  const q=v("em-search"),st=v("em-stage");
+  const f=allEmpresas.filter(e=>(!q||e.nome.toLowerCase().includes(q.toLowerCase())||e.contato?.toLowerCase().includes(q.toLowerCase()))&&(!st||e.pipeline===st)).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const list=document.getElementById("empresa-list");if(!list)return;
+  list.innerHTML=f.length===0?'<div class="empty">Nenhuma empresa cadastrada</div>':
+    f.map(e=>{const pc=PIPELINE_COLORS[e.pipeline]||"#888";return`<div class="data-card">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="avatar" style="background:#7F77DD22;color:#7F77DD;font-size:18px">🏢</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px;font-family:monospace;background:var(--cinza-light);padding:1px 5px;border-radius:3px">${esc(e.id)}</span>
+            <span style="font-weight:500;font-size:14px">${esc(e.nome)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted)">${esc(e.contato||"")} ${e.telefone?"· "+esc(e.telefone):""}</div>
+          ${e.endereco?`<div style="font-size:12px;color:var(--text-muted)">${esc(e.endereco)}</div>`:""}
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+          <span class="badge" style="background:${pc}22;color:${pc}">${e.pipeline}</span>
+          <button class="btn-sm" onclick="openModal('empresa','${e.id}')">Editar</button>
+          <button class="btn-sm btn-danger" onclick="deleteDoc('empresas','${e.id}')">✕</button>
+        </div>
+      </div>
+      ${(e.exposicoes||[]).length>0?`<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--cinza-border)">
+        <div class="section-subtitle">Exposições</div>
+        ${e.exposicoes.map(ex=>`<div style="font-size:12px;background:var(--cinza-light);border-radius:4px;padding:5px 8px;margin-bottom:4px">📅 ${toDMY(ex.data)||formatDate(ex.data)} · ${formatCurrency(ex.faturamento)}${ex.obs?" · "+esc(ex.obs):""}</div>`).join("")}
+      </div>`:""}
+    </div>`;}).join("");
+}
+
+/* ================================================================
+   MENSAGENS
+================================================================ */
+function renderMensagens(){
+  const sel=document.getElementById("msg-client");if(!sel)return;
+  const cur=sel.value;
+  const sortedClients=[...allClients].sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  sel.innerHTML='<option value="">Selecionar...</option>'+sortedClients.map(c=>`<option value="${c.id}">${esc(c.nome)}</option>`).join("");
+  sel.value=cur;
+  const client=allClients.find(c=>c.id===sel.value);
+  const info=document.getElementById("msg-client-info");
+  if(info&&client){
+    const parts=[];
+    if(client.aniversario)parts.push(`🎂 ${formatDate(client.aniversario)}`);
+    (client.ocasioes||[]).forEach(o=>parts.push(`${emojiOcasiao(o.ocasiao)} ${o.pessoa}`));
+    if(client.telefone)parts.push(`<span style="color:#25d366">WhatsApp</span>`);
+    info.innerHTML=parts.join(" · ");
+  }else if(info)info.innerHTML="";
+  const fill=msg=>{
+    if(!client)return msg;
+    return msg.replace(/\[Nome\]/g,client.nome.split(" ")[0]).replace(/\[NomePessoa\]/g,(client.ocasioes||[])[0]?.pessoa||"alguém especial").replace(/\[Confeitaria\]/g,appConfig.nome||"nossa confeitaria");
+  };
+  const list=document.getElementById("msg-list");if(!list)return;
+  list.innerHTML=allTemplates.map(t=>{
+    const msg=fill(t.mensagem);
+    const waHref=client&&client.telefone?"https://wa.me/55"+client.telefone.replace(/[^0-9]/g,"")+"?text="+encodeURIComponent(msg):"";
+    return`<div class="msg-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px">
+      <span style="font-weight:500;font-size:14px">${esc(t.titulo)}</span>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        <button class="btn-sm" onclick="openModal('template','${t.id}')">Editar</button>
+        <button class="btn-sm btn-danger" onclick="deleteDoc('msgTemplates','${t.id}')">✕</button>
+      </div>
+    </div>
+    <div class="msg-preview" id="prev-${t.id}">${esc(msg)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="navigator.clipboard.writeText(allTemplates.find(x=>x.id==='${t.id}')?.mensagem?.replace(/\[Nome\]/g,'${client?client.nome.split(' ')[0]:''}')?.replace(/\[NomePessoa\]/g,'${client?(client.ocasioes||[])[0]?.pessoa||'':''}')?.replace(/\[Confeitaria\]/g,'${appConfig.nome||''}') || '').then(()=>showToast('Copiado!'))">Copiar</button>
+      ${client&&client.telefone?`<a href="${waHref}" target="_blank" class="btn-sm btn-wa" style="text-decoration:none">Abrir no WhatsApp</a>`:""}
+    </div>
+  </div>`;}).join("");
+}
+
+/* ================================================================
+   MODAL
+================================================================ */
+function openModal(type,id){
+  editingId=id||null;tempOcasioes=[];tempExposicoes=[];tempCliProds=[];
+  if(id){
+    if(type==="client"){const c=allClients.find(x=>x.id===id);if(c){tempOcasioes=JSON.parse(JSON.stringify(c.ocasioes||[]));tempCliProds=JSON.parse(JSON.stringify(c.produtos||[]));}}
+    if(type==="empresa"){const e=allEmpresas.find(x=>x.id===id);if(e)tempExposicoes=JSON.parse(JSON.stringify(e.exposicoes||[]));}
+  }
+  const titles={client:"Cliente",produto:"Produto",empresa:"Empresa",template:"Modelo de mensagem",categoria:"Categoria",sabor:"Sabor"};
+  document.getElementById("modal-title").textContent=(id?"Editar ":"Novo ")+titles[type];
+  document.getElementById("modal-body").innerHTML=buildForm(type,id);
+  document.getElementById("modal").style.display="flex";
+}
+function closeModal(){document.getElementById("modal").style.display="none";}
+function buildForm(type,id){
+  if(type==="client")return buildClientForm(id);
+  if(type==="produto")return buildProdutoForm(id);
+  if(type==="empresa")return buildEmpresaForm(id);
+  if(type==="template")return buildTemplateForm(id);
+  if(type==="categoria")return`<div class="form-group"><label class="form-label">Nome</label><input id="f-cat"/></div><div style="text-align:right"><button class="btn-primary" onclick="saveCategoria()">Salvar</button></div>`;
+  if(type==="sabor")return`<div class="form-group"><label class="form-label">Nome</label><input id="f-sabor"/></div><div style="text-align:right"><button class="btn-primary" onclick="saveSabor()">Salvar</button></div>`;
+  return"";
+}
+
+/* CLIENT FORM */
+function buildClientForm(id){
+  const c=id?allClients.find(x=>x.id===id):null;
+
+  const pipeOpts=PIPELINE_CLI.map(p=>`<option${(c?.pipeline||"Novo lead")===p?" selected":""}>${p}</option>`).join("");
+  const empOpts=`<option value="">Nenhuma</option>`+allEmpresas.map(e=>`<option value="${e.id}"${c?.empresaId===e.id?" selected":""}>${esc(e.nome)}</option>`).join("");
+  const ocOpts=OCASIOES.map(o=>`<option>${o}</option>`).join("");
+  const relOpts=RELACOES.map(r=>`<option>${r}</option>`).join("");
+  const prodOpts=`<option value="">Selecionar produto...</option>`+allProdutos.filter(p=>p.ativo!==false).sort((a,b)=>(a.nomeComercial||"").localeCompare(b.nomeComercial||"","pt-BR")).map(p=>`<option value="${p.id}">${esc(p.sku||"")} — ${esc(p.nomeComercial||"")} (${esc(p.tamanho||"")})</option>`).join("");
+  return`
+    <div class="form-row"><div class="form-group"><label class="form-label">Nome *</label><input id="f-nome" value="${esc(c?.nome||"")}"/></div>
+    <div class="form-group"><label class="form-label">Telefone (chave) *</label><input id="f-tel" value="${esc(c?.telefone||"")}" placeholder="(11) 99999-9999" oninput="maskPhone(this)" maxlength="15"/></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">E-mail</label><input id="f-email" type="email" value="${esc(c?.email||"")}"/></div>
+    <div class="form-group"><label class="form-label">Aniversário</label><input id="f-aniv" type="text" placeholder="DD/MM/AAAA" oninput="maskDate(this)" maxlength="10" value="${toDMY(c?.aniversario||'')}"/></div></div>
+    <div class="form-group"><label class="form-label">Etapa do funil</label><select id="f-pipeline">${pipeOpts}</select></div>
+    <div class="form-group">
+      <label class="form-label">Origem</label>
+      <select id="f-origem" onchange="onOrigemChange()" style="max-width:220px">
+        <option value="">Não informado</option>
+        <option value="indicacao"${(c?.origem||"")==="indicacao"?" selected":""}>Indicação</option>
+        <option value="exposicao"${(c?.origem||"")==="exposicao"?" selected":""}>Exposição</option>
+        <option value="redes_sociais"${(c?.origem||"")==="redes_sociais"?" selected":""}>Redes sociais</option>
+        <option value="outros"${(c?.origem||"")==="outros"?" selected":""}>Outros</option>
+      </select>
+    </div>
+    <div id="f-origem-indicacao" style="display:${(c?.origem||"")==="indicacao"?"block":"none"}">
+      <div class="form-group">
+        <label class="form-label">Cliente que indicou</label>
+        <input id="f-indicado" value="${esc(getClientNameById(c?.indicadoPor||''))}" placeholder="Digite o nome do cliente..." oninput="searchIndicacao(this)" autocomplete="off"/>
+        <input type="hidden" id="f-indicado-id" value="${esc(c?.indicadoPor||'')}"/>
+        <div id="ind-dropdown" style="position:relative;z-index:50"></div>
+        <div id="ind-hint" style="font-size:12px;color:var(--verde);margin-top:2px"></div>
+      </div>
+    </div>
+    <div id="f-origem-exposicao" style="display:${(c?.origem||"")==="exposicao"?"block":"none"}">
+      <div class="form-group">
+        <label class="form-label">Empresa (exposição)</label>
+        <input id="f-empresa-origem" value="${esc(getEmpresaNameById(c?.empresaId||''))}" placeholder="Buscar empresa ou digitar nova..." oninput="searchEmpresaOrigem(this)" autocomplete="off"/>
+        <input type="hidden" id="f-empresa-origem-id" value="${esc(c?.empresaId||'')}"/>
+        <div id="empresa-origem-dropdown" style="position:relative;z-index:50"></div>
+        <div id="empresa-origem-hint" style="font-size:12px;color:var(--verde);margin-top:2px"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Produtos de interesse</label>
+      <div id="cli-prods-list">${renderCliProdsList()}</div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <div style="flex:1"><select id="f-cp-prod">${prodOpts}</select></div>
+        <button type="button" onclick="addCliProd()" style="padding:8px 14px;white-space:nowrap">+ Add</button>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Datas especiais</label>
+      <div id="ocasioes-list">${renderOcasioesList()}</div>
+      <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px;margin-top:6px">
+        <div class="form-row-3"><div><label class="form-label">Ocasião</label><select id="f-oc-ocas">${ocOpts}</select></div>
+        <div><label class="form-label">Nome da pessoa</label><input id="f-oc-nome" placeholder="Ex: Sofia"/></div>
+        <div><label class="form-label">Relação</label><select id="f-oc-rel">${relOpts}</select></div></div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div style="flex:1"><label class="form-label">Data</label><input id="f-oc-data" type="text" placeholder="DD/MM/AAAA" oninput="maskDate(this)" maxlength="10"/></div>
+          <button type="button" onclick="addOcasiao()">+ Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">Notas</label><textarea id="f-notas" rows="3">${esc(c?.notas||"")}</textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveClient()">Salvar</button>
+    </div>`;
+}
+function getClientNameById(id){const c=allClients.find(x=>x.id===id);return c?c.nome:"";}
+function getEmpresaNameById(id){const e=allEmpresas.find(x=>x.id===id);return e?e.nome:"";}
+
+function onOrigemChange(){
+  const val=document.getElementById("f-origem")?.value;
+  const indDiv=document.getElementById("f-origem-indicacao");
+  const expDiv=document.getElementById("f-origem-exposicao");
+  if(indDiv)indDiv.style.display=val==="indicacao"?"block":"none";
+  if(expDiv)expDiv.style.display=val==="exposicao"?"block":"none";
+  // Clear hidden fields when switching
+  if(val!=="indicacao"){
+    const fi=document.getElementById("f-indicado");if(fi)fi.value="";
+    const fid=document.getElementById("f-indicado-id");if(fid)fid.value="";
+    const dd=document.getElementById("ind-dropdown");if(dd)dd.innerHTML="";
+  }
+  if(val!=="exposicao"){
+    const fe=document.getElementById("f-empresa-origem");if(fe)fe.value="";
+    const feid=document.getElementById("f-empresa-origem-id");if(feid)feid.value="";
+    const edd=document.getElementById("empresa-origem-dropdown");if(edd)edd.innerHTML="";
+  }
+}
+
+function searchEmpresaOrigem(el){
+  const q=el.value.trim().toLowerCase();
+  const dd=document.getElementById("empresa-origem-dropdown");
+  const hint=document.getElementById("empresa-origem-hint");
+  document.getElementById("f-empresa-origem-id").value="";
+  if(!q){dd.innerHTML="";hint.innerHTML="";return;}
+  const matches=allEmpresas.filter(e=>e.nome.toLowerCase().includes(q)).slice(0,6);
+  let html=`<div style="background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);margin-top:2px;overflow:hidden">`;
+  if(matches.length){
+    html+=matches.map(e=>`<div onclick="selectEmpresaOrigem('${e.id}','${esc(e.nome)}')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--cinza-border)" onmouseover="this.style.background='var(--cinza-light)'" onmouseout="this.style.background=''">${esc(e.nome)}</div>`).join("");
+  }
+  // Always offer to create new company
+  html+=`<div onclick="createAndSelectEmpresaOrigem('${esc(el.value.trim())}')" style="padding:8px 12px;font-size:13px;cursor:pointer;color:var(--azul);display:flex;align-items:center;gap:6px" onmouseover="this.style.background='var(--cinza-light)'" onmouseout="this.style.background=''">
+    <span style="font-weight:500">+</span> Cadastrar "${esc(el.value.trim())}" como nova empresa
+  </div>`;
+  html+=`</div>`;
+  dd.innerHTML=html;
+}
+
+function selectEmpresaOrigem(id,nome){
+  document.getElementById("f-empresa-origem").value=nome;
+  document.getElementById("f-empresa-origem-id").value=id;
+  document.getElementById("empresa-origem-dropdown").innerHTML="";
+  document.getElementById("empresa-origem-hint").innerHTML=`<span style="color:var(--verde)">✓ ${esc(nome)}</span>`;
+}
+
+async function createAndSelectEmpresaOrigem(nome){
+  if(!nome)return;
+  const eid=nextId(allEmpresas,"E");
+  const obj={id:eid,nome,endereco:"",contato:"",telefone:"",pipeline:"Prospecção",notas:"Cadastrada a partir de origem de cliente.",exposicoes:[]};
+  try{
+    await db.collection("empresas").doc(eid).set(obj);
+    selectEmpresaOrigem(eid,nome);
+    showToast("Empresa '"+nome+"' cadastrada!");
+  }catch(e){showToast("Erro ao criar empresa: "+e.message,"err");}
+}
+function searchIndicacao(el){
+  const q=el.value.trim().toLowerCase();
+  const dd=document.getElementById("ind-dropdown");
+  const hint=document.getElementById("ind-hint");
+  if(!q){dd.innerHTML="";hint.textContent="";document.getElementById("f-indicado-id").value="";return;}
+  const matches=allClients.filter(c=>c.nome.toLowerCase().includes(q)&&c.id!==editingId).slice(0,6);
+  if(!matches.length){dd.innerHTML="";hint.textContent="";return;}
+  dd.innerHTML=`<div style="background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius-sm);box-shadow:var(--shadow-md);margin-top:2px;overflow:hidden">
+    ${matches.map(c=>`<div onclick="selectIndicacao('${c.id}','${esc(c.nome)}')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--cinza-border)" onmouseover="this.style.background='var(--cinza-light)'" onmouseout="this.style.background=''">${esc(c.nome)}<span style="font-size:11px;color:var(--text-muted);margin-left:8px">${esc(c.telefone||"")}</span></div>`).join("")}
+  </div>`;
+}
+function selectIndicacao(id,nome){
+  document.getElementById("f-indicado").value=nome;
+  document.getElementById("f-indicado-id").value=id;
+  document.getElementById("ind-dropdown").innerHTML="";
+  document.getElementById("ind-hint").innerHTML=`<span style="color:var(--verde)">✓ ${esc(nome)}</span>`;
+}
+function renderCliProdsList(){
+  if(!tempCliProds.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhum produto adicionado.</div>`;
+  return tempCliProds.map((pid,i)=>{const p=getProduto(pid);return`<div class="prod-item">
+    <div style="flex:1;font-size:13px">${p?`[${esc(p.id)}] ${esc(p.nome)} — ${esc(p.sabor)} ${esc(p.tamanho)}`:"Produto removido"}</div>
+    <button type="button" class="btn-sm btn-danger" onclick="removeCliProd(${i})">✕</button></div>`;}).join("");
+}
+function addCliProd(){const pid=v("f-cp-prod");if(!pid)return;if(tempCliProds.includes(pid))return alert("Produto já adicionado.");tempCliProds.push(pid);document.getElementById("f-cp-prod").value="";document.getElementById("cli-prods-list").innerHTML=renderCliProdsList();}
+function removeCliProd(i){tempCliProds.splice(i,1);document.getElementById("cli-prods-list").innerHTML=renderCliProdsList();}
+function renderOcasioesList(){
+  if(!tempOcasioes.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhuma data adicionada.</div>`;
+  return tempOcasioes.map((o,i)=>`<div class="ocasiao-item"><span style="font-size:16px">${emojiOcasiao(o.ocasiao)}</span>
+    <div style="flex:1;font-size:13px"><strong>${esc(o.pessoa)}</strong> · ${esc(o.relacao)} · ${esc(o.ocasiao)} · ${toDMY(o.data)||formatDate(o.data)}</div>
+    <button type="button" class="btn-sm btn-danger" onclick="removeOcasiao(${i})">✕</button></div>`).join("");
+}
+function addOcasiao(){const n=v("f-oc-nome"),d=document.getElementById("f-oc-data")?.value;if(!n||!d)return alert("Informe nome e data.");tempOcasioes.push({ocasiao:v("f-oc-ocas"),pessoa:n,relacao:v("f-oc-rel"),data:toISO(d)});document.getElementById("f-oc-nome").value="";document.getElementById("f-oc-data").value="";document.getElementById("ocasioes-list").innerHTML=renderOcasioesList();}
+function removeOcasiao(i){tempOcasioes.splice(i,1);document.getElementById("ocasioes-list").innerHTML=renderOcasioesList();}
+async function saveClient(){
+  const nome=v("f-nome"),tel=v("f-tel");
+  if(!nome||!tel)return alert("Nome e telefone são obrigatórios.");
+  const dup=allClients.find(c=>c.telefone===tel&&c.id!==editingId);
+  if(dup)return alert(`Telefone já cadastrado: ${dup.nome}`);
+  const prefs=[];
+  const existing=editingId?allClients.find(c=>c.id===editingId):null;
+  const origem=v("f-origem");
+  const empresaIdFinal=origem==="exposicao"?(document.getElementById("f-empresa-origem-id")?.value||""):"";
+  const indicadoPorFinal=origem==="indicacao"?(document.getElementById("f-indicado-id")?.value||""):"";
+  const obj={nome,telefone:tel,email:v("f-email"),aniversario:toISO(document.getElementById("f-aniv")?.value||""),pipeline:v("f-pipeline"),origem,empresaId:empresaIdFinal,indicadoPor:indicadoPorFinal,preferencias:prefs,ocasioes:[...tempOcasioes],produtos:[...tempCliProds],notas:v("f-notas"),criadoEm:existing?.criadoEm||new Date().toISOString().slice(0,10),msgStatus:existing?.msgStatus||{}};
+  if(editingId)await db.collection("clients").doc(editingId).set(obj);
+  else await db.collection("clients").add(obj);
+  closeModal();showToast("Cliente salvo!");
+}
+
+/* PRODUTO FORM */
+function buildProdutoForm(id){
+  const p=id?allProdutos.find(x=>x.id===id):null;
+  const catOpts=allCategorias.map(c=>`<option${p?.categoria===c?" selected":""}>${esc(c)}</option>`).join("");
+  const sabOpts=allSabores.map(s=>`<option${p?.sabor===s?" selected":""}>${esc(s)}</option>`).join("");
+  const tamOpts=TAMANHOS.map(t=>`<option${p?.tamanho===t?" selected":""}>${t}</option>`).join("");
+  return`
+    <div class="form-row"><div class="form-group"><label class="form-label">ID *</label><input id="f-pid" value="${esc(p?.id||nextId(allProdutos,'P'))}" ${p?"readonly style='background:var(--cinza-light)'":" "}/></div>
+    <div class="form-group"><label class="form-label">Categoria</label><select id="f-pcat">${catOpts}</select></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Nome *</label><input id="f-pnome" value="${esc(p?.nome||"")}"/></div>
+    <div class="form-group"><label class="form-label">Sabor</label><select id="f-psab">${sabOpts}</select></div></div>
+    <div class="form-row-3" style="margin-bottom:12px">
+      <div><label class="form-label">Tamanho</label><select id="f-ptam">${tamOpts}</select></div>
+      <div><label class="form-label">Preço (R$)</label><input id="f-ppreco" type="number" step="0.01" value="${p?.preco||""}" oninput="calcMarkup()"/></div>
+      <div><label class="form-label">Custo (R$)</label><input id="f-pcusto" type="number" step="0.01" value="${p?.custo||""}" oninput="calcMarkup()"/></div>
+    </div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--text-muted)">Markup (Preço−Custo)/Custo:</span>
+      <span id="mkp-calc" style="font-size:18px;font-family:'Playfair Display',serif;font-weight:500;color:var(--verde)">${p?markup(p.preco,p.custo):"—"}</span>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="saveProduto()">Salvar</button></div>`;
+}
+function calcMarkup(){const p=parseFloat(document.getElementById("f-ppreco")?.value)||0,c=parseFloat(document.getElementById("f-pcusto")?.value)||0;const el=document.getElementById("mkp-calc");if(el){el.textContent=p||c?markup(p,c):"—";el.style.color=markupColor(p,c);}}
+async function saveProduto(){
+  const nome=v("f-pnome");if(!nome)return alert("Informe o nome.");
+  const pid=v("f-pid");
+  const obj={id:pid,categoria:v("f-pcat"),nome,sabor:v("f-psab"),tamanho:v("f-ptam"),preco:parseFloat(document.getElementById("f-ppreco")?.value)||0,custo:parseFloat(document.getElementById("f-pcusto")?.value)||0};
+  if(editingId)await db.collection("produtos").doc(editingId).set(obj);
+  else await db.collection("produtos").doc(pid).set(obj);
+  closeModal();showToast("Produto salvo!");
+}
+async function saveCategoria(){const v2=v("f-cat");if(!v2)return;await db.collection("categorias").add({nome:v2});closeModal();showToast("Categoria salva!");}
+async function saveSabor(){const v2=v("f-sabor");if(!v2)return;await db.collection("sabores").add({nome:v2});closeModal();showToast("Sabor salvo!");}
+
+/* EMPRESA FORM */
+function buildEmpresaForm(id){
+  const e=id?allEmpresas.find(x=>x.id===id):null;
+  const pipeOpts=PIPELINE_EMP.map(p=>`<option${(e?.pipeline||"Prospecção")===p?" selected":""}>${p}</option>`).join("");
+  return`
+    <div class="form-row"><div class="form-group"><label class="form-label">ID</label><input id="f-eid" value="${esc(e?.id||nextId(allEmpresas,'E'))}" ${e?"readonly style='background:var(--cinza-light)'":" "}/></div>
+    <div class="form-group"><label class="form-label">Nome *</label><input id="f-enome" value="${esc(e?.nome||"")}"/></div></div>
+    <div class="form-group"><label class="form-label">Endereço</label><input id="f-eend" value="${esc(e?.endereco||"")}"/></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Contato</label><input id="f-econt" value="${esc(e?.contato||"")}"/></div>
+    <div class="form-group"><label class="form-label">Telefone</label><input id="f-etel" value="${esc(e?.telefone||"")}" oninput="maskPhone(this)" maxlength="15"/></div></div>
+    <div class="form-group"><label class="form-label">Etapa do funil</label><select id="f-epipe" style="max-width:220px">${pipeOpts}</select></div>
+    <div class="form-group"><label class="form-label">Notas</label><textarea id="f-enotas" rows="2">${esc(e?.notas||"")}</textarea></div>
+    <div class="form-group"><label class="form-label">Exposições / eventos</label>
+      <div id="expos-list">${renderExposList()}</div>
+      <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px;margin-top:6px">
+        <div class="form-row-3"><div><label class="form-label">Data</label><input id="f-ex-data" type="text" placeholder="DD/MM/AAAA" oninput="maskDate(this)" maxlength="10"/></div>
+        <div><label class="form-label">Faturamento (R$)</label><input id="f-ex-fat" type="number" step="0.01"/></div>
+        <div><label class="form-label">Observações</label><input id="f-ex-obs"/></div></div>
+        <button type="button" onclick="addExposicao()">+ Adicionar</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="saveEmpresa()">Salvar</button></div>`;
+}
+function renderExposList(){if(!tempExposicoes.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhuma exposição.</div>`;return tempExposicoes.map((ex,i)=>`<div class="ocasiao-item"><div style="flex:1;font-size:13px">📅 ${toDMY(ex.data)||formatDate(ex.data)} · ${formatCurrency(ex.faturamento)}${ex.obs?" · "+esc(ex.obs):""}</div><button type="button" class="btn-sm btn-danger" onclick="removeExposicao(${i})">✕</button></div>`).join("");}
+function addExposicao(){const d=document.getElementById("f-ex-data")?.value;if(!d)return alert("Informe a data.");tempExposicoes.push({data:toISO(d),faturamento:parseFloat(document.getElementById("f-ex-fat")?.value)||0,obs:v("f-ex-obs")});document.getElementById("f-ex-data").value="";document.getElementById("f-ex-fat").value="";document.getElementById("f-ex-obs").value="";document.getElementById("expos-list").innerHTML=renderExposList();}
+function removeExposicao(i){tempExposicoes.splice(i,1);document.getElementById("expos-list").innerHTML=renderExposList();}
+async function saveEmpresa(){
+  const nome=v("f-enome");if(!nome)return alert("Informe o nome.");
+  const eid=v("f-eid");
+  const obj={id:eid,nome,endereco:v("f-eend"),contato:v("f-econt"),telefone:v("f-etel"),pipeline:v("f-epipe"),notas:v("f-enotas"),exposicoes:[...tempExposicoes]};
+  if(editingId)await db.collection("empresas").doc(editingId).set(obj);
+  else await db.collection("empresas").doc(eid).set(obj);
+  closeModal();showToast("Empresa salva!");
+}
+
+/* TEMPLATE FORM */
+function buildTemplateForm(id){const t=id?allTemplates.find(x=>x.id===id):null;return`<div class="form-group"><label class="form-label">Título</label><input id="f-ttit" value="${esc(t?.titulo||"")}"/></div><div class="form-group"><label class="form-label">Mensagem</label><textarea id="f-tmsg" rows="6">${esc(t?.mensagem||"")}</textarea><div style="font-size:11px;color:var(--text-muted);margin-top:4px">Variáveis: <code>[Nome]</code> <code>[NomePessoa]</code> <code>[Confeitaria]</code></div></div><div style="display:flex;gap:8px;justify-content:flex-end"><button onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="saveTemplate()">Salvar</button></div>`;}
+async function saveTemplate(){const titulo=v("f-ttit"),mensagem=v("f-tmsg");if(!titulo||!mensagem)return alert("Preencha título e mensagem.");const obj={titulo,mensagem};if(editingId)await db.collection("msgTemplates").doc(editingId).set(obj);else await db.collection("msgTemplates").add(obj);closeModal();showToast("Modelo salvo!");}
+
+/* ================================================================
+   DELETE
+================================================================ */
+async function deleteDoc(col,id){
+  if(!confirm("Excluir este registro?"))return;
+  await db.collection(col).doc(id).delete();
+  showToast("Excluído.");
+}
+
+/* ================================================================
+   IMPORT / EXPORT
+================================================================ */
+function exportCSVProdutos(){
+  const rows=[["sku","nomeComercial","categoria","tamanho","precoVenda","encomenda","ativo","descricao"]];
+  allProdutos.forEach(p=>rows.push([p.sku||"",p.nomeComercial||"",p.categoria||"",p.tamanho||"",p.precoVenda||"",p.encomenda||"",p.ativo!==false?"sim":"nao",p.descricao||""]));
+  const csv=rows.map(r=>r.map(val=>['"',String(val||"").replace(/"/g,'""'),'"'].join("")).join(",")).join("\n");
+  const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);a.download="produtos_skus.csv";a.click();
+}
+function exportCSV(mod){
+  let rows,filename;
+  if(mod==="clients"){rows=[["id","nome","telefone","email","aniversario","pipeline","origem","empresaid","indicadopor","preferencias","notas"]];allClients.forEach(c=>rows.push([c.id,c.nome,c.telefone,c.email||"",c.aniversario||"",c.pipeline||"",c.origem||"",c.empresaId||"",c.indicadoPor||"",(c.preferencias||[]).join("|"),(c.indicadoPor?allClients.find(x=>x.id===c.indicadoPor)?.nome||c.indicadoPor:""),c.notas||""]));filename="clientes.csv";}
+  else if(mod==="produtos"){rows=[["id","categoria","nome","sabor","tamanho","preco","custo","markup"]];allProdutos.forEach(p=>rows.push([p.id,p.categoria,p.nome,p.sabor,p.tamanho,p.preco,p.custo,markup(p.preco,p.custo)]));filename="produtos.csv";}
+  else if(mod==="empresas"){rows=[["id","nome","endereco","contato","telefone","pipeline","notas"]];allEmpresas.forEach(e=>rows.push([e.id,e.nome,e.endereco||"",e.contato||"",e.telefone||"",e.pipeline||"",e.notas||""]));filename="empresas.csv";}
+  const csv=rows.map(r=>r.map(v=>`"${String(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  dlFile(filename,"data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv));
+}
+function exportAllJSON(){dlFile("crm_backup_"+new Date().toISOString().slice(0,10)+".json","data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify({clients:allClients,produtos:allProdutos,empresas:allEmpresas,templates:allTemplates,savedAt:new Date().toISOString()},null,2)));showToast("Backup exportado!");}
+function dlFile(name,href){const a=document.createElement("a");a.href=href;a.download=name;a.click();}
+async function importCSV(e,mod){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    try{
+    // Decode com detecção de encoding (UTF-8 vs Windows-1252)
+    const bytes=new Uint8Array(ev.target.result);
+    let raw;
+    try{
+      const dec=new TextDecoder("utf-8",{fatal:true});
+      raw=dec.decode(bytes);
+    }catch(e){
+      const dec=new TextDecoder("windows-1252");
+      raw=dec.decode(bytes);
+    }
+    raw=raw.replace(/^\uFEFF/,"");// Remove BOM
+    const lines=raw.split(/\r?\n/).filter(l=>l.trim());
+    if(lines.length<2){showToast("CSV vazio ou sem dados.","err");return;}
+    // Auto-detect separator: Brazilian Excel uses semicolon
+    const sep=lines[0].includes(";")&&!lines[0].includes(",")?";":","
+    const header=parseCSVRow(lines[0],sep).map(h=>h.toLowerCase().trim().replace(/[^a-z0-9]/g,""));
+    let count=0,errors=0;
+    for(let i=1;i<lines.length;i++){
+      const vals=parseCSVRow(lines[i],sep);if(!vals.length)continue;
+      const row={};header.forEach((h,idx)=>{row[h]=vals[idx]||"";});
+      // also map common aliases
+      if(!row.nome&&row.name)row.nome=row.name;
+      if(!row.telefone&&row.phone)row.telefone=row.phone;
+      if(!row.telefone&&row.fone)row.telefone=row.fone;
+      if(mod==="clients"&&row.nome&&row.telefone){
+        const obj={nome:row.nome,telefone:row.telefone,email:row.email||"",aniversario:toISO(row.aniversario||""),pipeline:PIPELINE_CLI.includes(row.pipeline)?row.pipeline:"Novo lead",preferencias:(row.preferencias||"").split("|").filter(Boolean),ocasioes:[],produtos:[],indicadoPor:(()=>{const v=row.indicadopor||"";if(!v)return"";const byPhone=allClients.find(c=>c.telefone===v);if(byPhone)return byPhone.id;const byName=allClients.find(c=>c.nome.toLowerCase()===v.toLowerCase());return byName?byName.id:""})(),empresaId:row.empresaid||"",notas:row.notas||"",criadoEm:new Date().toISOString().slice(0,10),msgStatus:{}};
+        const ex=allClients.find(c=>c.telefone===row.telefone);
+        if(ex)await db.collection("clients").doc(ex.id).set(obj);
+        else await db.collection("clients").add(obj);
+        count++;
+      } else if(mod==="produtos"&&row.nome){
+        const pid=(row.id||nextId(allProdutos,"P")).trim();
+        const obj={id:pid,categoria:row.categoria||"Outro",nome:row.nome,sabor:row.sabor||"Outro",tamanho:TAMANHOS.includes(row.tamanho)?row.tamanho:"M",preco:parseFloat((row.preco||"0").replace(",","."))||0,custo:parseFloat((row.custo||"0").replace(",","."))||0};
+        const ex=allProdutos.find(p=>p.id===pid);
+        if(ex)await db.collection("produtos").doc(ex.id).set(obj);
+        else await db.collection("produtos").doc(pid).set(obj);
+        count++;
+      } else if(mod==="empresas"&&row.nome){
+        const eid=(row.id||nextId(allEmpresas,"E")).trim();
+        const obj={id:eid,nome:row.nome,endereco:row.endereco||"",contato:row.contato||"",telefone:row.telefone||"",pipeline:PIPELINE_EMP.includes(row.pipeline)?row.pipeline:"Prospecção",notas:row.notas||"",exposicoes:[]};
+        const ex=allEmpresas.find(e=>e.id===eid);
+        if(ex)await db.collection("empresas").doc(ex.id).set(obj);
+        else await db.collection("empresas").doc(eid).set(obj);
+        count++;
+      }
+    }
+    if(count>0)showToast(`✓ ${count} registro(s) importado(s)!`);
+    else showToast("Nenhum registro importado. Verifique se o arquivo é do módulo correto e tem os campos obrigatórios (nome, telefone para clientes; nome para produtos/empresas).","err");
+    }catch(err){showToast("Erro na importação: "+err.message,"err");console.error(err);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+function parseCSVRow(row,sep=","){const res=[];let cur="",inQ=false;for(let i=0;i<row.length;i++){const ch=row[i];if(ch==='"'){if(inQ&&row[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(ch===sep&&!inQ){res.push(cur);cur="";}else cur+=ch;}res.push(cur);return res.map(v=>v.replace(/^"|"$/g,"").trim());}
+
+/* ================================================================
+   PUBLIC FORM SUBMIT
+================================================================ */
+async function submitPublicForm(){
+  const user=auth.currentUser;
+  if(!user){showToast("Faça login primeiro.","err");return;}
+  const nome=v("fp-nome"),tel=v("fp-tel");
+  if(!nome||!tel)return alert("Nome e telefone são obrigatórios.");
+  const data={nome,telefone:tel,email:user.email,aniversario:toISO(document.getElementById("fp-aniv")?.value||""),origem:document.getElementById("fp-origem")?.value||"",preferencias:[],googleUid:user.uid,googleName:user.displayName,submittedAt:new Date().toISOString()};
+  await db.collection("pendingForms").add(data);
+  document.getElementById("fp-step-form").style.display="none";
+  document.getElementById("fp-step-success").style.display="block";
+}
+
+
+/* ================================================================
+   LOCALSTORAGE MIGRATION
+================================================================ */
+function checkLocalStorageMigration(){
+  const oldClients=JSON.parse(localStorage.getItem("crm_clients")||"[]");
+  const oldProdutos=JSON.parse(localStorage.getItem("crm_produtos")||"[]");
+  const oldEmpresas=JSON.parse(localStorage.getItem("crm_empresas")||"[]");
+  const alreadyMigrated=localStorage.getItem("crm_migrated_to_firebase");
+  if(alreadyMigrated)return;
+  const total=oldClients.length+oldProdutos.length+oldEmpresas.length;
+  if(total===0)return;
+  // Only show banner if Firebase collections are empty
+  if(allClients.length>0)return;
+  showMigrationBanner(oldClients,oldProdutos,oldEmpresas);
+}
+
+function showMigrationBanner(clients,produtos,empresas){
+  const total=clients.length+produtos.length+empresas.length;
+  const banner=document.createElement("div");
+  banner.id="migration-banner";
+  banner.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow-md);z-index:9000;max-width:480px;width:90%;font-family:'DM Sans',sans-serif";
+  banner.innerHTML=`
+    <div style="font-weight:500;font-size:14px;margin-bottom:6px;color:var(--rosa)">📦 Dados encontrados no histórico local</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Encontramos <strong>${clients.length} cliente(s)</strong>, <strong>${produtos.length} produto(s)</strong> e <strong>${empresas.length} empresa(s)</strong> salvos anteriormente neste navegador. Deseja migrar para o Firebase?</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">⚠️ Se a migração falhar, abra o Console do navegador (F12) para ver o detalhe do erro.</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="migrateLocalStorage()" style="flex:1;background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:8px;font-size:13px;cursor:pointer;font-family:inherit">✓ Migrar agora</button>
+      <button onclick="dismissMigration()" style="flex:1;background:transparent;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px;font-size:13px;cursor:pointer;font-family:inherit">Fechar</button>
+    </div>`;
+  document.body.appendChild(banner);
+}
+
+async function migrateLocalStorage(){
+  const banner=document.getElementById("migration-banner");
+  if(banner)banner.innerHTML=`<div style="text-align:center;padding:8px;font-size:13px;color:var(--text-muted)">Migrando dados... aguarde.</div>`;
+
+  const oldClients=JSON.parse(localStorage.getItem("crm_clients")||"[]");
+  const oldProdutos=JSON.parse(localStorage.getItem("crm_produtos")||"[]");
+  const oldEmpresas=JSON.parse(localStorage.getItem("crm_empresas")||"[]");
+  const oldTemplates=JSON.parse(localStorage.getItem("crm_templates")||"[]");
+  const oldCats=JSON.parse(localStorage.getItem("crm_categorias")||"[]");
+  const oldSabs=JSON.parse(localStorage.getItem("crm_sabores")||"[]");
+
+  let ok=0,fail=0,failMsgs=[];
+
+  // Helper: clean object removing undefined values
+  const clean=obj=>JSON.parse(JSON.stringify(obj,(k,v)=>v===undefined?"":v));
+
+  // Migrate clients — one by one, continue on error
+  for(const c of oldClients){
+    try{
+      const rawId=String(c.id||uid());
+      const id=rawId.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();
+      const obj=clean({...c,id,
+        ocasioes:Array.isArray(c.ocasioes)?c.ocasioes:[],
+        produtos:Array.isArray(c.produtos)?c.produtos:[],
+        preferencias:Array.isArray(c.preferencias)?c.preferencias:[],
+        msgStatus:c.msgStatus||{},
+        criadoEm:c.criadoEm||new Date().toISOString().slice(0,10)
+      });
+      await db.collection("clients").doc(id).set(obj);
+      ok++;
+    }catch(e){fail++;failMsgs.push("Cliente "+c.nome+": "+e.message);}
+  }
+
+  for(const p of oldProdutos){
+    try{
+      const rawId=String(p.id||uid());
+      const id=rawId.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();
+      await db.collection("produtos").doc(id).set(clean({...p,id}));
+      ok++;
+    }catch(e){fail++;failMsgs.push("Produto "+p.nome+": "+e.message);}
+  }
+
+  for(const e of oldEmpresas){
+    try{
+      const rawId=String(e.id||uid());
+      const id=rawId.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();
+      const obj=clean({...e,id,exposicoes:Array.isArray(e.exposicoes)?e.exposicoes:[]});
+      await db.collection("empresas").doc(id).set(obj);
+      ok++;
+    }catch(e2){fail++;failMsgs.push("Empresa "+e.nome+": "+e2.message);}
+  }
+
+  for(const t of oldTemplates){
+    try{if(t.id)await db.collection("msgTemplates").doc(t.id).set(clean(t));}catch(e){}
+  }
+  for(const c of oldCats){
+    try{if(c&&typeof c==="string")await db.collection("categorias").add({nome:c});}catch(e){}
+  }
+  for(const s of oldSabs){
+    try{if(s&&typeof s==="string")await db.collection("sabores").add({nome:s});}catch(e){}
+  }
+
+  if(banner)banner.remove();
+
+  localStorage.setItem("crm_migrated_to_firebase","1");
+
+  // Show persistent result modal instead of vanishing toast
+  const resultDiv=document.createElement("div");
+  resultDiv.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow-md);z-index:9001;max-width:520px;width:90%;font-family:'DM Sans',sans-serif;max-height:60vh;overflow:auto";
+
+  if(fail===0){
+    resultDiv.innerHTML=`<div style="color:var(--verde);font-weight:500;font-size:14px;margin-bottom:8px">✓ Migração concluída!</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">${ok} registro(s) migrado(s) com sucesso para o Firebase.</div>
+      <button onclick="this.parentElement.remove()" style="background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer;font-family:inherit">Fechar</button>`;
+  } else {
+    const errList=failMsgs.slice(0,10).map(m=>`<li style="margin-bottom:4px;font-size:12px">${m}</li>`).join("");
+    resultDiv.innerHTML=`<div style="color:var(--rosa);font-weight:500;font-size:14px;margin-bottom:8px">⚠️ Migração parcial</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">✓ ${ok} migrado(s) &nbsp;·&nbsp; ✗ ${fail} com erro</div>
+      <div style="font-size:12px;font-weight:500;margin-bottom:6px;color:var(--text-muted)">Detalhes dos erros:</div>
+      <ul style="padding-left:16px;margin-bottom:12px;background:var(--cinza-light);border-radius:6px;padding:10px 10px 10px 24px">${errList}${failMsgs.length>10?`<li style="font-size:12px;color:var(--text-muted)">...e mais ${failMsgs.length-10} erros</li>`:""}</ul>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Dica: os registros com erro geralmente têm campos inválidos. Você pode cadastrá-los manualmente ou tentar novamente.</div>
+      <button onclick="this.parentElement.remove()" style="background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer;font-family:inherit">Fechar</button>`;
+    console.error("Erros de migração:",failMsgs);
+  }
+  document.body.appendChild(resultDiv);
+}
+
+function dismissMigration(){
+  const b=document.getElementById("migration-banner");
+  if(b)b.remove();
+  // Don't mark as migrated — show again next login if data still there
+}
+function resetMigration(){
+  localStorage.removeItem("crm_migrated_to_firebase");
+  showToast("Tentando migração novamente...");
+  setTimeout(checkLocalStorageMigration,500);
+}
+
+/* ================================================================
+   CENTRAL DE DISPAROS
+================================================================ */
+
+function buildDispatchList(){
+  // Coleta todos os eventos dos clientes dentro do período
+  const periodo=parseInt(document.getElementById("disp-periodo")?.value||"7");
+  const soHoje=document.getElementById("disp-periodo")?.value==="hoje";
+  const dias=soHoje?0:periodo;
+  const events=[];
+
+  allClients.forEach(c=>{
+    // Aniversário do cliente
+    if(c.aniversario){
+      const d=daysTill(c.aniversario);
+      if(d!==null&&d<=(soHoje?0:dias)&&d>=0){
+        events.push({
+          clienteId:c.id,nome:c.nome,telefone:c.telefone,
+          tipo:"aniversario_cliente",tipoLabel:"🎂 Aniversário",
+          diasAte:d,pipeline:c.pipeline,
+          msgKey:"disp_aniv_"+c.id,
+          sent:!!(c.msgStatus?.["disp_aniv_"+c.id]),
+          defaultTemplate:"t1"
+        });
+      }
+    }
+    // Ocasiões especiais
+    (c.ocasioes||[]).forEach((o,i)=>{
+      if(!o.data)return;
+      const d=daysTill(o.data);
+      if(d!==null&&d<=(soHoje?0:dias)&&d>=0){
+        const emoji=emojiOcasiao(o.ocasiao);
+        events.push({
+          clienteId:c.id,nome:c.nome,telefone:c.telefone,
+          tipo:"ocasiao_"+i,tipoLabel:emoji+" "+o.ocasiao+" de "+o.pessoa,
+          diasAte:d,pipeline:c.pipeline,
+          pessoa:o.pessoa,relacao:o.relacao,
+          msgKey:"disp_oc_"+c.id+"_"+i,
+          sent:!!(c.msgStatus?.["disp_oc_"+c.id+"_"+i]),
+          defaultTemplate:o.ocasiao==="Aniversário"?"t3":"t2"
+        });
+      }
+    });
+  });
+
+  // Ordena por dias, depois por nome
+  events.sort((a,b)=>a.diasAte-b.diasAte||a.nome.localeCompare(b.nome));
+  return events;
+}
+
+function renderDisparos(){
+  const soHoje=document.getElementById("disp-periodo")?.value==="hoje";
+  const soPendentes=document.getElementById("disp-so-pendentes")?.checked;
+  let events=buildDispatchList();
+  const total=events.length;
+  const pendentes=events.filter(e=>!e.sent).length;
+
+  // Update badge
+  const badge=document.getElementById("disparos-badge");
+  if(badge)badge.innerHTML=pendentes>0?`<span class="pending-badge">${pendentes}</span>`:"";
+
+  if(soPendentes)events=events.filter(e=>!e.sent);
+
+  const list=document.getElementById("disp-list");
+  const summary=document.getElementById("disp-summary");
+  if(!list)return;
+
+  // Summary cards
+  if(summary){
+    const hoje=events.filter(e=>e.diasAte===0).length;
+    const amanha=events.filter(e=>e.diasAte===1).length;
+    const semana=events.filter(e=>e.diasAte<=7).length;
+    summary.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:4px">
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Hoje</div>
+        <div class="metric-value" style="color:var(--rosa);font-size:22px">${events.filter(e=>e.diasAte===0).length}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Amanhã</div>
+        <div class="metric-value" style="font-size:22px">${events.filter(e=>e.diasAte===1).length}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Esta semana</div>
+        <div class="metric-value" style="color:var(--amarelo);font-size:22px">${events.filter(e=>e.diasAte<=7).length}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Pendentes</div>
+        <div class="metric-value" style="color:var(--rosa);font-size:22px">${pendentes}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Enviados</div>
+        <div class="metric-value" style="color:var(--verde);font-size:22px">${total-pendentes}</div>
+      </div>
+    </div>`;
+  }
+
+  if(events.length===0){
+    list.innerHTML=`<div class="empty">${soPendentes?"Nenhum disparo pendente no período 🎉":"Nenhuma data especial no período selecionado"}</div>`;
+    return;
+  }
+
+  // Agrupar por dia
+  const byDay={};
+  events.forEach(e=>{
+    const key=e.diasAte===0?"hoje":e.diasAte===1?"amanha":"d"+e.diasAte;
+    if(!byDay[key])byDay[key]={label:e.diasAte===0?"Hoje":e.diasAte===1?"Amanhã":"Em "+e.diasAte+" dias",dias:e.diasAte,items:[]};
+    byDay[key].items.push(e);
+  });
+
+  let html="";
+  Object.values(byDay).sort((a,b)=>a.dias-b.dias).forEach(day=>{
+    const dayColor=day.dias===0?"var(--rosa)":day.dias===1?"var(--amarelo)":"var(--verde)";
+    html+=`<div class="disp-day-header" style="color:${dayColor}">
+      <strong>${day.label}</strong> <span style="font-size:11px;font-weight:400">${day.items.length} cliente(s)</span>
+      <span></span>
+    </div>`;
+
+    day.items.forEach(e=>{
+      const cls=e.diasAte===0?"disp-urgente":e.diasAte<=7?"disp-proximo":"disp-ok";
+      const pc=PIPELINE_COLORS[e.pipeline]||"#888";
+      const templateOpts=allTemplates.map(t=>`<option value="${t.id}"${t.id===e.defaultTemplate?" selected":""}>${esc(t.titulo)}</option>`).join("");
+      const waMsg=buildWAMsg(e);
+      const waUrl=e.telefone?`https://wa.me/55${e.telefone.replace(/\D/g,"")}?text=${encodeURIComponent(waMsg)}`:null;
+
+      html+=`<div class="disp-card ${cls}${e.sent?" sent":""}" id="dcard-${esc(e.msgKey)}">
+        <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-weight:500;font-size:14px">${esc(e.nome)}</span>
+              <span class="disp-tipo-badge ${cls}">${e.tipoLabel}</span>
+              <span class="badge" style="background:${pc}22;color:${pc}">${e.pipeline}</span>
+              ${e.sent?`<span class="badge" style="background:var(--verde-light);color:var(--verde)">✓ Enviado</span>`:""}
+            </div>
+            ${e.telefone?`<div style="font-size:12px;color:var(--text-muted)">${esc(e.telefone)}</div>`:""}
+            <div style="margin-top:8px">
+              <select class="template-select" id="tsel-${esc(e.msgKey)}" onchange="updateWALink('${esc(e.msgKey)}','${e.clienteId}','${esc(e.telefone||"")}','${esc(e.pessoa||"")}')">
+                ${templateOpts}
+              </select>
+            </div>
+            <div style="margin-top:6px;font-size:12px;color:var(--text-muted);background:var(--cinza-light);border-radius:var(--radius-sm);padding:8px 10px;line-height:1.5" id="prev-${esc(e.msgKey)}">${esc(waMsg)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end">
+            ${waUrl?`<a href="${waUrl}" target="_blank" class="wa-btn" id="walink-${esc(e.msgKey)}" onclick="autoMarkSent('${esc(e.msgKey)}','${e.clienteId}')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+              Abrir WhatsApp
+            </a>`:`<span style="font-size:12px;color:var(--text-muted)">Sem telefone cadastrado</span>`}
+            <button class="sent-btn ${e.sent?"done":"pending"}" id="sbtn-${esc(e.msgKey)}" onclick="toggleDispSent('${esc(e.msgKey)}','${e.clienteId}',this)">
+              ${e.sent?"✓ Enviado":"○ Marcar enviado"}
+            </button>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+
+  list.innerHTML=html;
+}
+
+function buildWAMsg(e){
+  // Pega o template selecionado (ou o default)
+  const selEl=document.getElementById("tsel-"+e.msgKey);
+  const tId=selEl?selEl.value:e.defaultTemplate;
+  const template=allTemplates.find(t=>t.id===tId)||allTemplates[0];
+  if(!template)return"";
+  const primeiroNome=e.nome.split(" ")[0];
+  return template.mensagem
+    .replace(/\[Nome\]/g,primeiroNome)
+    .replace(/\[NomePessoa\]/g,e.pessoa||"alguém especial")
+    .replace(/\[Confeitaria\]/g,appConfig.nome||"nossa confeitaria");
+}
+
+function updateWALink(msgKey,clienteId,telefone,pessoa){
+  const selEl=document.getElementById("tsel-"+msgKey);
+  const tId=selEl?selEl.value:"";
+  const template=allTemplates.find(t=>t.id===tId)||allTemplates[0];
+  if(!template)return;
+  const c=allClients.find(x=>x.id===clienteId);
+  const primeiroNome=c?c.nome.split(" ")[0]:"";
+  const msg=template.mensagem
+    .replace(/\[Nome\]/g,primeiroNome)
+    .replace(/\[NomePessoa\]/g,pessoa||"alguém especial")
+    .replace(/\[Confeitaria\]/g,appConfig.nome||"nossa confeitaria");
+
+  const prev=document.getElementById("prev-"+msgKey);
+  if(prev)prev.textContent=msg;
+
+  const waLink=document.getElementById("walink-"+msgKey);
+  if(waLink&&telefone){
+    waLink.href="https://wa.me/55"+telefone.replace(/[^0-9]/g,"")+"?text="+encodeURIComponent(msg);
+  }
+}
+
+async function autoMarkSent(msgKey,clienteId){
+  // Marca como enviado automaticamente ao clicar em Abrir WhatsApp
+  const c=allClients.find(x=>x.id===clienteId);
+  if(!c)return;
+  const msgStatus={...(c.msgStatus||{}),[msgKey]:true};
+  await db.collection("clients").doc(clienteId).update({msgStatus});
+  // Update UI without full re-render
+  const card=document.getElementById("dcard-"+msgKey);
+  const btn=document.getElementById("sbtn-"+msgKey);
+  if(card)card.classList.add("sent");
+  if(btn){btn.className="sent-btn done";btn.textContent="✓ Enviado";}
+  // Update badge
+  setTimeout(()=>{
+    const pending=buildDispatchList().filter(e=>!e.sent).length;
+    const badge=document.getElementById("disparos-badge");
+    if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
+  },500);
+}
+
+async function toggleDispSent(msgKey,clienteId,btn){
+  const c=allClients.find(x=>x.id===clienteId);
+  if(!c)return;
+  const current=!!(c.msgStatus?.[msgKey]);
+  const msgStatus={...(c.msgStatus||{}),[msgKey]:!current};
+  await db.collection("clients").doc(clienteId).update({msgStatus});
+  btn.className="sent-btn "+(!current?"done":"pending");
+  btn.textContent=!current?"✓ Enviado":"○ Marcar enviado";
+  const card=document.getElementById("dcard-"+msgKey);
+  if(card){if(!current)card.classList.add("sent");else card.classList.remove("sent");}
+  setTimeout(()=>{
+    const pending=buildDispatchList().filter(e=>!e.sent).length;
+    const badge=document.getElementById("disparos-badge");
+    if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
+  },300);
+}
+
+async function markAllSent(){
+  const events=buildDispatchList().filter(e=>!e.sent);
+  if(!events.length)return showToast("Nenhum disparo pendente.");
+  if(!confirm(`Marcar ${events.length} disparo(s) como enviado?`))return;
+  // Group by client to minimize writes
+  const byClient={};
+  events.forEach(e=>{
+    if(!byClient[e.clienteId])byClient[e.clienteId]={clienteId:e.clienteId,keys:[]};
+    byClient[e.clienteId].keys.push(e.msgKey);
+  });
+  for(const {clienteId,keys} of Object.values(byClient)){
+    const c=allClients.find(x=>x.id===clienteId);
+    if(!c)continue;
+    const msgStatus={...(c.msgStatus||{})};
+    keys.forEach(k=>msgStatus[k]=true);
+    await db.collection("clients").doc(clienteId).update({msgStatus});
+  }
+  showToast(`✓ ${events.length} disparos marcados como enviados!`);
+  renderDisparos();
+}
+
+// Update disparos badge whenever clients change
+function updateDisparosBadge(){
+  const pending=buildDispatchList().filter(e=>!e.sent).length;
+  const badge=document.getElementById("disparos-badge");
+  if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
+}
+/* ================================================================
+   INIT
+================================================================ */
+window.addEventListener("DOMContentLoaded",async()=>{
+  if(isFormMode){
+    // Public form mode
+    initFirebase(FIREBASE_CONFIG);
+    auth=firebase.auth();db=firebase.firestore();
+    document.getElementById("form-page").style.display="flex";
+    // Load config for branding
+    try{const snap=await db.collection("config").doc("main").get();if(snap.exists){appConfig=snap.data();const n=appConfig.nome;if(n)document.getElementById("fp-conf-nome").textContent=n;if(appConfig.logo){const i=document.getElementById("fp-logo-img");const p=document.getElementById("fp-logo-ph");if(i&&p){i.src=appConfig.logo;i.style.display="block";p.style.display="none";}}}}catch(e){}
+    // Fill prefs
+
+    return;
+  }
+
+  // Admin mode — config is hardcoded, vai direto pro login
+  if(!initFirebase(FIREBASE_CONFIG)){
+    document.getElementById("setup-screen").style.display="flex";
+    document.getElementById("setup-screen").innerHTML='<div class="auth-card"><h2 style="color:#c0392b">Erro na configuração do Firebase</h2><p style="margin-top:10px;font-size:13px">Verifique as credenciais no código.</p></div>';
+    return;
+  }
+  db=firebase.firestore();auth=firebase.auth();
+  document.getElementById("login-screen").style.display="flex";
+  startAuth();
+});
+</script>
+
+<!-- ================================================================
+     SETUP GUIDE (visible in the HTML source)
+     
+     PASSO A PASSO — CONFIGURAR FIREBASE (10 minutos)
+     
+     1. Acesse https://console.firebase.google.com
+     2. Clique em "Criar projeto" → dê o nome "crm-confeitaria" → Continuar
+     3. Desative o Google Analytics (não precisa) → Criar projeto
+     
+     4. No menu lateral: Authentication → Começar
+        - Em "Método de login" → Google → Ativar → Salvar
+     
+     5. No menu lateral: Firestore Database → Criar banco de dados
+        - Modo de produção → Escolha a região "us-east1" → Ativar
+        - Vá em "Regras" e cole:
+        
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            function isAdmin() {
+              return request.auth != null && (
+                !exists(/databases/$(database)/documents/config/main) ||
+                request.auth.token.email in get(/databases/$(database)/documents/config/main).data.authorizedEmails
+              );
+            }
+            match /config/main {
+              allow read: if request.auth != null;
+              allow write: if isAdmin();
+            }
+            match /pendingForms/{doc} {
+              allow create: if request.auth != null;
+              allow read, update, delete: if isAdmin();
+            }
+            match /{collection}/{doc} {
+              allow read, write: if isAdmin();
+            }
+          }
+        }
+     
+     6. No menu lateral: Configurações do projeto (engrenagem)
+        - Role até "Seus apps" → clique em "</>" (Web)
+        - Dê o nome "crm-web" → Registrar app
+        - Copie os valores de apiKey, authDomain, projectId e appId
+     
+     7. Em Authentication → Settings → Domínios autorizados
+        - Adicione seu domínio do Netlify (ex: crm-verve.netlify.app)
+     
+     8. Cole os valores no formulário de configuração do CRM
+        e clique em "Conectar ao Firebase"
+     
+     Pronto! Seus dados ficam no Firebase (nuvem do Google),
+     acessível de qualquer lugar, em tempo real.
+================================================================ -->
+</body>
+</html>

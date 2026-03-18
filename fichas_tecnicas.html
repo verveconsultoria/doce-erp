@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Fichas Técnicas — Confeitaria</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@500&display=swap" rel="stylesheet"/>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --rosa:#b5536a;--rosa-light:#f9edf0;--rosa-dark:#8e3d52;
+  --verde:#3a7d5a;--verde-light:#e8f4ee;
+  --azul:#1a73e8;--azul-light:#e8f0fe;
+  --amarelo:#c8820a;--amarelo-light:#fef3e0;
+  --vermelho:#c0392b;--vermelho-light:#fdf0f0;
+  --cinza-light:#f5f4f2;--cinza-border:#e0ddd8;
+  --bg:#fdfcfb;--white:#fff;--text:#2a2a2a;--text-muted:#7a7572;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 1px 4px rgba(0,0,0,.08);--shadow-md:0 4px 16px rgba(0,0,0,.1);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+h1,h2,h3{font-family:'Playfair Display',serif}
+input,select,textarea{font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white);color:var(--text);border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 11px;width:100%;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--rosa)}
+button{font-family:'DM Sans',sans-serif;cursor:pointer;border-radius:var(--radius-sm);border:1px solid var(--cinza-border);background:transparent;color:var(--text);font-size:13px;padding:7px 14px;transition:all .15s}
+button:hover{background:var(--cinza-light)}
+button:active{transform:scale(.98)}
+.btn-primary{background:var(--rosa)!important;color:#fff!important;border-color:var(--rosa)!important}
+.btn-primary:hover{background:var(--rosa-dark)!important}
+.btn-success{background:var(--verde)!important;color:#fff!important;border-color:var(--verde)!important}
+.btn-warn{background:var(--amarelo)!important;color:#fff!important;border-color:var(--amarelo)!important}
+.btn-danger{color:var(--vermelho)!important;border-color:#e8b4b4!important}
+.btn-danger:hover{background:var(--vermelho-light)!important}
+.btn-sm{padding:4px 10px!important;font-size:12px!important}
+
+#nav{background:var(--white);border-bottom:1px solid var(--cinza-border);padding:0 14px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.nav-brand{display:flex;align-items:center;gap:8px;padding:10px 0;margin-right:8px;flex-shrink:0;text-decoration:none}
+.nav-brand-icon{width:32px;height:32px;border-radius:50%;background:var(--rosa-light);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.nav-brand-name{font-family:'Playfair Display',serif;font-size:15px;color:var(--rosa);font-weight:500;white-space:nowrap}
+.nav-tabs{display:flex;flex:1;overflow-x:auto}
+.nav-tabs::-webkit-scrollbar{display:none}
+.nav-tab{padding:10px 12px;border:none;background:transparent;border-bottom:2px solid transparent;border-radius:0;color:var(--text-muted);font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:color .15s}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{color:var(--rosa);border-bottom-color:var(--rosa);font-weight:500}
+.nav-right{margin-left:auto;padding-left:8px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.nav-crm-link{font-size:12px;color:var(--text-muted);text-decoration:none;padding:4px 8px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm)}
+.nav-crm-link:hover{background:var(--cinza-light)}
+.user-avatar{width:28px;height:28px;border-radius:50%;cursor:pointer}
+
+#app{padding:20px;max-width:1100px;margin:0 auto}
+.page{display:none}.page.active{display:block}
+
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.metric-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.metric-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.metric-value{font-size:24px;font-family:'Playfair Display',serif}
+
+.data-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:13px 15px;margin-bottom:10px;box-shadow:var(--shadow);transition:box-shadow .15s}
+.data-card:hover{box-shadow:var(--shadow-md)}
+.badge{font-size:11px;padding:2px 9px;border-radius:99px;font-weight:500;white-space:nowrap}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--cinza-light);color:var(--text-muted)}
+.alert-badge{background:var(--vermelho-light);color:var(--vermelho);border:1px solid #e8b4b4;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500}
+.warn-badge{background:var(--amarelo-light);color:var(--amarelo);border:1px solid #fde68a;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500}
+
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--cinza-border);background:var(--white);box-shadow:var(--shadow);margin-bottom:14px}
+.data-table{width:100%;border-collapse:collapse;min-width:600px}
+.data-table th{background:var(--cinza-light);padding:8px 10px;text-align:left;font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--cinza-border);white-space:nowrap}
+.data-table td{padding:9px 10px;border-bottom:1px solid var(--cinza-border);font-size:13px;vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--cinza-light)}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.form-row-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.form-group{margin-bottom:12px}
+.form-label{font-size:12px;color:var(--text-muted);margin-bottom:4px;display:block;font-weight:500}
+.form-label .req{color:var(--rosa)}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.modal{background:var(--white);border-radius:var(--radius);width:100%;max-width:680px;max-height:92vh;overflow:auto;box-shadow:var(--shadow-md)}
+.modal-lg{max-width:820px}
+.modal-header{padding:14px 18px;border-bottom:1px solid var(--cinza-border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--white);z-index:10}
+.modal-body{padding:18px}
+.modal-title{font-family:'Playfair Display',serif;font-size:17px}
+.modal-close{border:none;background:none;font-size:18px;color:var(--text-muted);cursor:pointer;padding:2px 6px}
+
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.empty{padding:2rem;text-align:center;color:var(--text-muted);font-size:13px;background:var(--cinza-light);border-radius:var(--radius)}
+.section-title{font-size:13px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px}
+.divider{border:none;border-top:1px solid var(--cinza-border);margin:14px 0}
+.item-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--cinza-light);border-radius:var(--radius-sm);margin-bottom:6px}
+.info-box{background:var(--azul-light);border:1px solid #aecbfa;border-radius:var(--radius-sm);padding:10px 13px;font-size:12px;color:#1557b0;line-height:1.6;margin-bottom:10px}
+.warn-box{background:var(--amarelo-light);border:1px solid #fde68a;border-radius:var(--radius-sm);padding:10px 13px;font-size:12px;color:#92400e;line-height:1.6;margin-bottom:10px}
+.success-box{background:var(--verde-light);border:1px solid #a8d5be;border-radius:var(--radius-sm);padding:10px 13px;font-size:12px;color:var(--verde);line-height:1.6;margin-bottom:10px}
+
+/* Ficha técnica print/view */
+.ficha-header{background:var(--rosa-light);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.ficha-tamanho-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:10px 12px;text-align:center}
+.ficha-tamanho-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px}
+
+/* Stock bar */
+.stock-bar{width:100%;height:6px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-top:4px}
+.stock-fill{height:100%;border-radius:99px;transition:width .3s}
+
+/* Login screen */
+#login-screen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:2rem;background:linear-gradient(135deg,var(--rosa-light) 0%,var(--bg) 100%)}
+.auth-card{background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:var(--shadow-md);text-align:center}
+.btn-google{display:inline-flex;align-items:center;gap:10px;padding:10px 20px;border:1px solid #dadce0;border-radius:var(--radius-sm);background:#fff;color:#444;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer}
+.btn-google:hover{box-shadow:0 2px 8px rgba(0,0,0,.15)}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--cinza-border);border-radius:4px}
+@media(max-width:640px){.form-row{grid-template-columns:1fr}.form-row-3{grid-template-columns:1fr 1fr}.form-row-4{grid-template-columns:1fr 1fr}.nav-brand-name{display:none}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="auth-card">
+    <div style="font-size:40px;margin-bottom:12px">🎂</div>
+    <h2 style="color:var(--rosa);margin-bottom:6px;font-size:20px">Fichas Técnicas</h2>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Faça login para acessar</p>
+    <button class="btn-google" onclick="signIn()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Entrar com Google
+    </button>
+    <div id="login-err" style="margin-top:10px;font-size:12px;color:var(--vermelho)"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="main-app" style="display:none">
+<div id="nav">
+  <a href="index.html" class="nav-brand">
+    <div class="nav-brand-icon">🎂</div>
+    <span class="nav-brand-name" id="brand-name">Fichas Técnicas</span>
+  </a>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('dashboard',this)">Painel</button>
+    <button class="nav-tab" onclick="showPage('insumos',this)">Insumos</button>
+    <button class="nav-tab" onclick="showPage('bases',this)">Bases</button>
+    <button class="nav-tab" onclick="showPage('fichas',this)">Fichas Técnicas</button>
+    <button class="nav-tab" onclick="showPage('skus',this)">Produtos / SKUs</button>
+  </div>
+  <div class="nav-right">
+    <a href="index.html" class="nav-crm-link" style="color:var(--rosa);border-color:var(--rosa);font-weight:500">← Voltar ao CRM</a>
+    <img id="user-avatar" class="user-avatar" src="" alt="" onclick="auth.signOut()" title="Sair" style="display:none"/>
+  </div>
+</div>
+<div id="app">
+
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <h2 style="margin-bottom:16px;font-size:22px">Painel de Custos</h2>
+    <div class="metric-grid" id="dash-metrics"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:500">🚨 Estoque baixo</div>
+        <div id="dash-estoque-baixo"></div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:500">⚠️ Fichas com revisão de preço pendente</div>
+        <div id="dash-revisao"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INSUMOS -->
+  <div id="page-insumos" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Insumos</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSVInsumos()" style="font-size:12px">⬇ CSV</button>
+        <label style="padding:4px 10px;font-size:12px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);cursor:pointer">⬆ Importar<input type="file" accept=".csv" onchange="importCSVInsumos(event)" style="display:none"/></label>
+        <button class="btn-primary btn-sm" onclick="openModal('insumo')">+ Novo insumo</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input id="ins-search" placeholder="Nome, fornecedor..." style="max-width:220px" oninput="renderInsumos()"/>
+      <select id="ins-cat" onchange="renderInsumos()" style="max-width:160px">
+        <option value="">Todas as categorias</option>
+        <option>Secos</option><option>Refrigeração</option><option>Congelados</option>
+        <option>Embalagem</option><option>Outros</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ins-alerta" onchange="renderInsumos()" style="width:auto"/>
+        Só alertas
+      </label>
+    </div>
+    <div id="ins-count" style="font-size:12px;color:var(--text-muted);margin-bottom:10px"></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Nome</th><th>Categoria</th><th>Qtd. Embalagem</th><th>Valor Embal.</th><th>Valor Unit.</th><th>Fornecedor</th><th>Estoque</th><th>Mín.</th><th>Status</th><th></th></tr></thead>
+        <tbody id="ins-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BASES -->
+  <div id="page-bases" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Bases / Sub-receitas</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSVBases()" style="font-size:12px">⬇ CSV</button>
+        <button class="btn-primary btn-sm" onclick="openModal('base')">+ Nova base</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input id="base-search" placeholder="Nome..." style="max-width:220px" oninput="renderBases()"/>
+      <select id="base-tipo" onchange="renderBases()" style="max-width:160px">
+        <option value="">Todos os tipos</option>
+        <option>Massa</option><option>Recheio</option><option>Cobertura</option>
+        <option>Geleia</option><option>Creme</option><option>Outro</option>
+      </select>
+    </div>
+    <div id="base-list"></div>
+  </div>
+
+  <!-- FICHAS TÉCNICAS -->
+  <div id="page-fichas" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Fichas Técnicas</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSVFichas()" style="font-size:12px">⬇ CSV</button>
+        <button class="btn-primary btn-sm" onclick="openModal('ficha')">+ Nova ficha</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input id="fic-search" placeholder="Nome..." style="max-width:220px" oninput="renderFichas()"/>
+      <select id="fic-cat" onchange="renderFichas()" style="max-width:160px">
+        <option value="">Todas as categorias</option>
+        <option>Bolo</option><option>Docinho</option><option>Torta</option>
+        <option>Cupcake</option><option>Bem-casado</option><option>Outro</option>
+      </select>
+    </div>
+    <div id="fic-list"></div>
+  </div>
+
+  <!-- PRODUTOS / SKUs -->
+  <div id="page-skus" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px;flex-wrap:wrap">
+      <h2 style="font-size:22px">Produtos / SKUs</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="exportCSVSKUs()" style="font-size:12px">⬇ CSV</button>
+        <button class="btn-primary btn-sm" onclick="openModal('sku')">+ Novo SKU manual</button>
+      </div>
+    </div>
+    <div class="info-box" style="margin-bottom:14px">
+      💡 Gere SKUs automaticamente a partir das Fichas Técnicas. Cada ficha pode gerar um SKU por tamanho escolhido.
+    </div>
+    <div class="filter-bar">
+      <input id="sku-search" placeholder="Nome, SKU, categoria..." style="max-width:240px" oninput="renderSKUs()"/>
+      <select id="sku-cat" onchange="renderSKUs()" style="max-width:160px">
+        <option value="">Todas as categorias</option>
+        <option>Bolo</option><option>Docinho</option><option>Torta</option>
+        <option>Cupcake</option><option>Bem-casado</option><option>Outro</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="sku-ativos" onchange="renderSKUs()" style="width:auto" checked/> Só ativos
+      </label>
+    </div>
+    <div id="sku-count" style="font-size:12px;color:var(--text-muted);margin-bottom:10px"></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>SKU</th><th style="min-width:200px">Nome comercial</th><th>Ficha origem</th><th>Tamanho</th><th>Custo</th><th>Preço venda</th><th>MC%</th><th>Encomenda</th><th>Status</th><th></th></tr></thead>
+        <tbody id="sku-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /app -->
+</div><!-- /main-app -->
+
+<!-- MODAL -->
+<div id="modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-inner" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title"></span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   FIREBASE CONFIG — mesma config do CRM
+============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDdP4UH5_o_gzuYLeVG0ruxkRoeW5aAlxE",
+  authDomain: "crm-confeitaria-de0fe.firebaseapp.com",
+  projectId: "crm-confeitaria-de0fe",
+  appId: "1:713356973364:web:341b74f629e5fa48290161"
+};
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+const TAMANHOS=["Baby","PP","P","M","G","GG","GGG"];
+const TAMANHO_CM={Baby:"11cm",PP:"15cm",P:"17cm",M:"20cm",G:"23cm",GG:"25cm",GGG:"30cm"};
+const UNIDADES=["un","g","kg","ml","l","cx","pacote","fatia"];
+const CATEGORIAS_INS=["Secos","Refrigeração","Congelados","Embalagem","Outros"];
+const TIPOS_BASE=["Massa","Recheio","Cobertura","Geleia","Creme","Outro"];
+const CATEGORIAS_FIC=["Bolo","Docinho","Torta","Cupcake","Bem-casado","Outro"];
+
+/* ============================================================
+   STATE
+============================================================ */
+let db=null,auth=null,currentUser=null,appConfig={};
+let allInsumos=[],allBases=[],allFichas=[],allSKUs=[];
+let editingId=null;
+let tempInsBase=[],tempInsFicha=[],tempBases=[],tempAdicionais=[],tempEmbalagens=[];
+
+/* ============================================================
+   UTILS
+============================================================ */
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function fmtCurrency(v){if(v===null||v===undefined||isNaN(v))return"—";return"R$ "+parseFloat(v).toFixed(2).replace(".",",")}
+function fmtNum(v,dec=3){if(!v&&v!==0)return"—";return parseFloat(v).toFixed(dec).replace(".",",")}
+function v(id){return(document.getElementById(id)||{}).value?.trim()||""}
+function vn(id){return parseFloat((document.getElementById(id)||{}).value?.replace(",",".")||"0")||0}
+function getInsumo(id){return allInsumos.find(x=>x.id===id)}
+function getBase(id){return allBases.find(x=>x.id===id)}
+
+/* MC% formula: PV = CT / (1 - MC_desejada/100) */
+function calcPrecoSugerido(ct,mc){if(!ct||!mc)return 0;return ct/(1-mc/100)}
+function calcMC(pv,ct){if(!pv)return 0;return((pv-ct)/pv*100)}
+
+/* ============================================================
+   TOAST
+============================================================ */
+function showToast(msg,type){
+  let t=document.getElementById("_toast");
+  if(!t){t=document.createElement("div");t.id="_toast";t.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:99px;font-size:13px;z-index:9999;transition:opacity .3s;white-space:nowrap;pointer-events:none;font-family:'DM Sans',sans-serif";document.body.appendChild(t);}
+  t.style.background=type==="err"?"#c0392b":type==="warn"?"#c8820a":"#2a2a2a";
+  t.style.color="#fff";t.textContent=msg;t.style.opacity="1";t.style.display="block";
+  clearTimeout(t._t);t._t=setTimeout(()=>{t.style.opacity="0";setTimeout(()=>t.style.display="none",300)},type==="err"?6000:3000);
+}
+
+/* ============================================================
+   FIREBASE INIT + AUTH
+============================================================ */
+window.addEventListener("DOMContentLoaded",()=>{
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db=firebase.firestore();auth=firebase.auth();
+  auth.onAuthStateChanged(async user=>{
+    if(!user){document.getElementById("login-screen").style.display="flex";document.getElementById("main-app").style.display="none";return;}
+    currentUser=user;
+    const av=document.getElementById("user-avatar");if(av&&user.photoURL){av.src=user.photoURL;av.style.display="block";}
+    document.getElementById("login-screen").style.display="none";
+    document.getElementById("main-app").style.display="block";
+    loadConfig();
+    startListeners();
+  });
+});
+function signIn(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>document.getElementById("login-err").textContent=e.message);}
+
+async function loadConfig(){
+  try{
+    const snap=await db.collection("config").doc("main").get();
+    if(snap.exists){appConfig=snap.data();const n=appConfig.nome;if(n)document.getElementById("brand-name").textContent="Fichas — "+n;}
+  }catch(e){}
+}
+
+function startListeners(){
+  db.collection("insumos").orderBy("nome").onSnapshot(snap=>{allInsumos=snap.docs.map(d=>({id:d.id,...d.data()}));renderInsumos();renderDashboard();});
+  db.collection("bases").orderBy("nome").onSnapshot(snap=>{allBases=snap.docs.map(d=>({id:d.id,...d.data()}));renderBases();renderDashboard();});
+  db.collection("fichas").orderBy("nome").onSnapshot(snap=>{allFichas=snap.docs.map(d=>({id:d.id,...d.data()}));renderFichas();renderDashboard();});
+  db.collection("skus").orderBy("nomeComercial").onSnapshot(snap=>{allSKUs=snap.docs.map(d=>({id:d.id,...d.data()}));renderSKUs();});
+}
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+function showPage(id,btn){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav-tab").forEach(b=>b.classList.remove("active"));
+  document.getElementById("page-"+id).classList.add("active");
+  if(btn)btn.classList.add("active");
+  if(id==="skus")renderSKUs();
+}
+
+/* ============================================================
+   DASHBOARD
+============================================================ */
+function renderDashboard(){
+  const estoqueBaixo=allInsumos.filter(i=>i.estoqueMinimo>0&&(i.estoqueAtual||0)<i.estoqueMinimo);
+  const revisao=allFichas.filter(f=>f.precisaRevisao);
+  const m=document.getElementById("dash-metrics");
+  if(m)m.innerHTML=`
+    <div class="metric-card"><div class="metric-label">Insumos</div><div class="metric-value">${allInsumos.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Bases</div><div class="metric-value">${allBases.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Fichas técnicas</div><div class="metric-value">${allFichas.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Estoque baixo</div><div class="metric-value" style="color:var(--vermelho)">${estoqueBaixo.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Revisão pendente</div><div class="metric-value" style="color:var(--amarelo)">${revisao.length}</div></div>`;
+
+  const eb=document.getElementById("dash-estoque-baixo");
+  if(eb){eb.innerHTML=estoqueBaixo.length===0?'<div class="empty">Nenhum insumo com estoque crítico</div>':
+    estoqueBaixo.map(i=>{
+      const pct=i.estoqueMinimo?Math.min((i.estoqueAtual||0)/i.estoqueMinimo*100,100):0;
+      const col=pct<25?"var(--vermelho)":pct<60?"var(--amarelo)":"var(--verde)";
+      return`<div class="data-card" style="padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:500">${esc(i.nome)}</span>
+          <span class="alert-badge">Estoque baixo</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted)">Atual: <strong>${i.estoqueAtual||0} ${i.unidade||"un"}</strong> · Mínimo: ${i.estoqueMinimo} ${i.unidade||"un"}</div>
+        <div class="stock-bar"><div class="stock-fill" style="width:${pct}%;background:${col}"></div></div>
+      </div>`}).join("");}
+
+  const rv=document.getElementById("dash-revisao");
+  if(rv){rv.innerHTML=revisao.length===0?'<div class="empty">Nenhuma ficha com revisão pendente</div>':
+    revisao.map(f=>`<div class="data-card" style="padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--amarelo)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:500">${esc(f.nome)}</span>
+        <span class="warn-badge">Revisar preço</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Insumo com custo atualizado afeta esta ficha</div>
+      <button class="btn-sm" onclick="openModal('ficha','${f.id}')" style="margin-top:6px">Ver ficha</button>
+    </div>`).join("");}
+}
+
+/* ============================================================
+   INSUMOS
+============================================================ */
+function valorUnitario(ins){
+  if(!ins.valorEmbalagem||!ins.qtdEmbalagem)return 0;
+  return ins.valorEmbalagem/ins.qtdEmbalagem;
+}
+
+function renderInsumos(){
+  const q=v("ins-search").toLowerCase(),cat=v("ins-cat");
+  const alerta=document.getElementById("ins-alerta")?.checked;
+  const f=allInsumos.filter(i=>{
+    const qm=!q||i.nome?.toLowerCase().includes(q)||i.fornecedor?.toLowerCase().includes(q);
+    const cm=!cat||i.categoria===cat;
+    const am=!alerta||(i.estoqueMinimo>0&&(i.estoqueAtual||0)<i.estoqueMinimo);
+    return qm&&cm&&am;
+  }).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const cnt=document.getElementById("ins-count");if(cnt)cnt.textContent=f.length+" insumo(s)";
+  const tb=document.getElementById("ins-list");if(!tb)return;
+  tb.innerHTML=f.length===0?`<tr><td colspan="10" class="empty">Nenhum insumo cadastrado</td></tr>`:
+    f.map(i=>{
+      const vu=valorUnitario(i);
+      const baixo=i.estoqueMinimo>0&&(i.estoqueAtual||0)<i.estoqueMinimo;
+      const statusBadge=baixo?`<span class="alert-badge">Baixo</span>`:i.precisaRevisao?`<span class="warn-badge">Atualizou preço</span>`:`<span class="tag" style="color:var(--verde)">OK</span>`;
+      return`<tr>
+        <td style="font-weight:500">${esc(i.nome)}</td>
+        <td>${esc(i.categoria||"")}</td>
+        <td>${i.qtdEmbalagem||"—"} ${esc(i.unidade||"")}</td>
+        <td>${fmtCurrency(i.valorEmbalagem)}</td>
+        <td style="font-weight:500;color:var(--azul)">${vu?fmtCurrency(vu):"—"}<br/><span style="font-size:10px;color:var(--text-muted)">por ${i.unidade||"un"}</span></td>
+        <td>${esc(i.fornecedor||"—")}</td>
+        <td>${i.estoqueAtual!=null?i.estoqueAtual+" "+esc(i.unidade||""):"—"}</td>
+        <td>${i.estoqueMinimo||"—"}</td>
+        <td>${statusBadge}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm" onclick="openModal('insumo','${i.id}')">Editar</button>
+          <button class="btn-sm btn-danger" onclick="deleteDoc('insumos','${i.id}')">✕</button>
+        </td>
+      </tr>`;}).join("");
+}
+
+function buildInsumoForm(id){
+  const ins=id?allInsumos.find(x=>x.id===id):null;
+  const catOpts=CATEGORIAS_INS.map(c=>`<option${ins?.categoria===c?" selected":""}>${c}</option>`).join("");
+  const unOpts=UNIDADES.map(u=>`<option${ins?.unidade===u?" selected":""}>${u}</option>`).join("");
+  return`
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nome <span class="req">*</span></label><input id="f-nome" value="${esc(ins?.nome||"")}" placeholder="Ex: Chocolate meio amargo"/></div>
+      <div class="form-group"><label class="form-label">Categoria</label><select id="f-cat">${catOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Fornecedor</label><input id="f-forn" value="${esc(ins?.fornecedor||"")}" placeholder="Ex: Garoto, Harold..."/></div>
+      <div class="form-group"><label class="form-label">Unidade de medida</label><select id="f-unidade">${unOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Quantidade na embalagem</label><input id="f-qtd-emb" type="number" step="0.001" value="${ins?.qtdEmbalagem||""}" placeholder="Ex: 1000" oninput="calcVU()"/></div>
+      <div class="form-group"><label class="form-label">Valor da embalagem (R$)</label><input id="f-val-emb" type="number" step="0.01" value="${ins?.valorEmbalagem||""}" placeholder="Ex: 22.15" oninput="calcVU()"/></div>
+    </div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--text-muted)">Valor unitário calculado:</span>
+      <span id="f-vu" style="font-size:18px;font-family:'Playfair Display',serif;font-weight:500;color:var(--azul)">${ins?fmtCurrency(valorUnitario(ins)):"—"}</span>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Estoque atual</label><input id="f-est-atual" type="number" step="0.1" value="${ins?.estoqueAtual??""}" placeholder="Qtd atual"/></div>
+      <div class="form-group"><label class="form-label">Estoque mínimo (alerta)</label><input id="f-est-min" type="number" step="0.1" value="${ins?.estoqueMinimo||""}" placeholder="Ex: 200"/></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveInsumo()">Salvar</button>
+    </div>`;
+}
+
+function calcVU(){
+  const q=parseFloat(document.getElementById("f-qtd-emb")?.value)||0;
+  const v2=parseFloat(document.getElementById("f-val-emb")?.value)||0;
+  const el=document.getElementById("f-vu");
+  if(el)el.textContent=q&&v2?fmtCurrency(v2/q):"—";
+}
+
+async function saveInsumo(){
+  const nome=v("f-nome");if(!nome)return alert("Informe o nome.");
+  const qtdEmbalagem=parseFloat(v("f-qtd-emb").replace(",","."))||0;
+  const valorEmbalagem=parseFloat(v("f-val-emb").replace(",","."))||0;
+  const existing=editingId?allInsumos.find(x=>x.id===editingId):null;
+  const novoPreco=existing&&valorEmbalagem&&existing.valorEmbalagem&&valorEmbalagem!==existing.valorEmbalagem;
+  const obj={nome,categoria:v("f-cat"),fornecedor:v("f-forn"),unidade:v("f-unidade"),qtdEmbalagem,valorEmbalagem,
+    estoqueAtual:parseFloat(v("f-est-atual").replace(",","."))||0,
+    estoqueMinimo:parseFloat(v("f-est-min").replace(",","."))||0,
+    atualizadoEm:new Date().toISOString()};
+  if(editingId)await db.collection("insumos").doc(editingId).set(obj);
+  else await db.collection("insumos").add(obj);
+  // Se preço mudou, sinalizar fichas que usam este insumo
+  if(novoPreco){
+    const insumoId=editingId;
+    const fichasAfetadas=allFichas.filter(f=>{
+      const usaDir=(f.ingredientes||[]).some(i=>i.insumoId===insumoId);
+      const usaEmb=(f.embalagens||[]).some(i=>i.insumoId===insumoId);
+      const usaBase=allBases.filter(b=>(b.ingredientes||[]).some(i=>i.insumoId===insumoId)).some(b=>(f.bases||[]).some(fb=>fb.baseId===b.id));
+      return usaDir||usaEmb||usaBase;
+    });
+    for(const f of fichasAfetadas)await db.collection("fichas").doc(f.id).update({precisaRevisao:true});
+    if(fichasAfetadas.length>0)showToast(`⚠️ ${fichasAfetadas.length} ficha(s) marcada(s) para revisão de preço`,"warn");
+  }
+  closeModal();showToast("Insumo salvo!");
+}
+
+/* ============================================================
+   BASES
+============================================================ */
+function custoBase(base,tamanho){
+  // custo para um tamanho específico usando multiplicadores
+  const custoP=calcCustoBase(base);
+  const mult=(base.multiplicadores||{})[tamanho]||1;
+  return custoP*mult;
+}
+
+function calcCustoBase(base){
+  return (base.ingredientes||[]).reduce((sum,item)=>{
+    const ins=getInsumo(item.insumoId);
+    if(!ins)return sum;
+    const vu=valorUnitario(ins);
+    return sum+(vu*item.quantidade);
+  },0);
+}
+
+function renderBases(){
+  const q=v("base-search").toLowerCase(),tipo=v("base-tipo");
+  const f=allBases.filter(b=>(!q||b.nome?.toLowerCase().includes(q))&&(!tipo||b.tipo===tipo)).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const list=document.getElementById("base-list");if(!list)return;
+  list.innerHTML=f.length===0?'<div class="empty">Nenhuma base cadastrada</div>':
+    f.map(b=>{
+      const custoP=calcCustoBase(b);
+      const insNomes=(b.ingredientes||[]).map(i=>getInsumo(i.insumoId)?.nome||"?").join(", ");
+      return`<div class="data-card">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:500;font-size:14px">${esc(b.nome)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+              <span class="tag">${esc(b.tipo||"")}</span>
+              <span style="margin-left:8px">Base: ${esc(b.rendimentoBase||"1 receita")}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Ingredientes: ${esc(insNomes.slice(0,80))}${insNomes.length>80?"...":""}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:13px;font-weight:500;color:var(--azul)">${fmtCurrency(custoP)}<span style="font-size:10px;color:var(--text-muted);font-weight:400"> / base</span></div>
+            <div style="display:flex;gap:5px;margin-top:6px;justify-content:flex-end">
+              <button class="btn-sm" onclick="openModal('base','${b.id}')">Editar</button>
+              <button class="btn-sm btn-danger" onclick="deleteDoc('bases','${b.id}')">✕</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--cinza-border)">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:500">CUSTO POR TAMANHO</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${TAMANHOS.map(t=>`<div style="text-align:center;min-width:60px">
+              <div style="font-size:11px;color:var(--text-muted)">${t}</div>
+              <div style="font-size:13px;font-weight:500;color:var(--azul)">${fmtCurrency(custoBase(b,t))}</div>
+            </div>`).join("")}
+          </div>
+        </div>
+      </div>`}).join("");
+}
+
+function buildBaseForm(id){
+  tempInsBase=[];
+  const base=id?allBases.find(x=>x.id===id):null;
+  if(base)tempInsBase=JSON.parse(JSON.stringify(base.ingredientes||[]));
+  const tipoOpts=TIPOS_BASE.map(t=>`<option${base?.tipo===t?" selected":""}>${t}</option>`).join("");
+  const insOpts=`<option value="">Selecionar insumo...</option>`+allInsumos.map(i=>`<option value="${i.id}">${esc(i.nome)} (${i.unidade||"un"})</option>`).join("");
+  // Default multiplicadores baseados na planilha (proporção por área do círculo aproximada)
+  const defMult={Baby:0.5,PP:0.75,P:1,M:1.25,G:1.75,GG:2.5,GGG:3};
+  const mults=base?.multiplicadores||defMult;
+  return`
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nome <span class="req">*</span></label><input id="f-nome" value="${esc(base?.nome||"")}" placeholder="Ex: Bolo branco, Creme de Ninho..."/></div>
+      <div class="form-group"><label class="form-label">Tipo</label><select id="f-tipo">${tipoOpts}</select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Rendimento base (referência)</label><input id="f-rendimento" value="${esc(base?.rendimentoBase||"")}" placeholder="Ex: 1 bolo P 17cm, 500g de recheio..."/></div>
+    <hr class="divider"/>
+    <div class="section-title">Ingredientes</div>
+    <div id="ins-base-list">${renderInsBaseList()}</div>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:2;min-width:140px"><label class="form-label">Insumo</label><select id="f-ins-sel">${insOpts}</select></div>
+      <div style="flex:1;min-width:80px"><label class="form-label">Quantidade</label><input id="f-ins-qtd" type="number" step="0.001" placeholder="0.000"/></div>
+      <button type="button" onclick="addInsBase()" style="padding:8px 12px;white-space:nowrap">+ Add</button>
+    </div>
+    <hr class="divider"/>
+    <div class="section-title">Multiplicadores por tamanho (relativo à base = P)</div>
+    <div class="info-box">Defina quanto cada tamanho usa em relação à base. Ex: Baby = 0.5x, M = 1.25x. Pré-preenchido com proporções padrão.</div>
+    <div class="form-row-4">
+      ${TAMANHOS.map(t=>`<div class="form-group"><label class="form-label">${t} <span style="font-size:10px;color:var(--text-muted)">(${TAMANHO_CM[t]})</span></label><input id="f-mult-${t}" type="number" step="0.01" value="${mults[t]||1}" placeholder="1.0" oninput="updateCustosBase()"/></div>`).join("")}
+    </div>
+    <div id="f-custos-base" style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Custos estimados por tamanho:</div>
+      <div id="f-custos-base-vals" style="display:flex;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--azul)">—</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveBase()">Salvar base</button>
+    </div>`;
+}
+
+function renderInsBaseList(){
+  if(!tempInsBase.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhum ingrediente adicionado.</div>`;
+  return tempInsBase.map((item,i)=>{
+    const ins=getInsumo(item.insumoId);
+    const custo=ins?valorUnitario(ins)*item.quantidade:0;
+    return`<div class="item-row">
+      <div style="flex:1;font-size:13px"><strong>${esc(ins?.nome||"?")}</strong> · ${fmtNum(item.quantidade)} ${esc(ins?.unidade||"")} · <span style="color:var(--azul)">${fmtCurrency(custo)}</span></div>
+      <button type="button" class="btn-sm btn-danger" onclick="removeInsBase(${i})">✕</button>
+    </div>`;}).join("");
+}
+
+function addInsBase(){
+  const insumoId=v("f-ins-sel");const qtd=parseFloat(v("f-ins-qtd").replace(",","."))||0;
+  if(!insumoId||!qtd)return alert("Selecione insumo e quantidade.");
+  if(tempInsBase.find(i=>i.insumoId===insumoId))return alert("Insumo já adicionado.");
+  tempInsBase.push({insumoId,quantidade:qtd});
+  document.getElementById("f-ins-sel").value="";document.getElementById("f-ins-qtd").value="";
+  document.getElementById("ins-base-list").innerHTML=renderInsBaseList();
+  updateCustosBase();
+}
+function removeInsBase(i){tempInsBase.splice(i,1);document.getElementById("ins-base-list").innerHTML=renderInsBaseList();updateCustosBase();}
+
+function updateCustosBase(){
+  const custoP=tempInsBase.reduce((sum,item)=>{const ins=getInsumo(item.insumoId);return sum+(ins?valorUnitario(ins)*item.quantidade:0);},0);
+  const el=document.getElementById("f-custos-base-vals");
+  if(!el)return;
+  el.innerHTML=TAMANHOS.map(t=>{
+    const mult=parseFloat(document.getElementById("f-mult-"+t)?.value)||1;
+    return`<span><strong>${t}:</strong> ${fmtCurrency(custoP*mult)}</span>`;
+  }).join(" · ");
+}
+
+async function saveBase(){
+  const nome=v("f-nome");if(!nome)return alert("Informe o nome.");
+  const multiplicadores={};
+  TAMANHOS.forEach(t=>multiplicadores[t]=parseFloat(v("f-mult-"+t).replace(",","."))||1);
+  const obj={nome,tipo:v("f-tipo"),rendimentoBase:v("f-rendimento"),ingredientes:[...tempInsBase],multiplicadores};
+  if(editingId)await db.collection("bases").doc(editingId).set(obj);
+  else await db.collection("bases").add(obj);
+  closeModal();showToast("Base salva!");
+}
+
+/* ============================================================
+   FICHAS TÉCNICAS
+============================================================ */
+function calcCustoFicha(ficha,tamanho){
+  // Custo das bases
+  const custoBases=(ficha.bases||[]).reduce((sum,fb)=>{
+    const b=getBase(fb.baseId);if(!b)return sum;
+    const mult=(fb.multiplicadores||{})[tamanho]||(b.multiplicadores||{})[tamanho]||1;
+    return sum+calcCustoBase(b)*mult;
+  },0);
+  // Custo de insumos diretos (mesmos multiplicadores que bases)
+  const custoIns=(ficha.ingredientes||[]).reduce((sum,item)=>{
+    const ins=getInsumo(item.insumoId);if(!ins)return sum;
+    const mult=(ficha.multIngredientes||{})[tamanho]||1;
+    return sum+valorUnitario(ins)*item.quantidade*mult;
+  },0);
+  // Custo embalagens (por tamanho específico)
+  const custoEmb=(ficha.embalagens||[]).reduce((sum,item)=>{
+    const ins=getInsumo(item.insumoId);if(!ins)return sum;
+    const qtd=(item.quantidades||{})[tamanho]||0;
+    return sum+valorUnitario(ins)*qtd;
+  },0);
+  // Custo operacional
+  const custoOp=(ficha.valorPorMinuto||0)*(ficha.tempoPreparo||0);
+  return custoBases+custoIns+custoEmb+custoOp;
+}
+
+function renderFichas(){
+  const q=v("fic-search").toLowerCase(),cat=v("fic-cat");
+  const f=allFichas.filter(fi=>(!q||fi.nome?.toLowerCase().includes(q))&&(!cat||fi.categoria===cat)).sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const list=document.getElementById("fic-list");if(!list)return;
+  list.innerHTML=f.length===0?'<div class="empty">Nenhuma ficha técnica cadastrada</div>':
+    f.map(fi=>{
+      const mc=fi.margemDesejada||40;
+      return`<div class="data-card" style="${fi.precisaRevisao?'border-left:3px solid var(--amarelo)':''}">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-weight:500;font-size:14px">${esc(fi.nome)}</span>
+              <span class="tag">${esc(fi.categoria||"")}</span>
+              ${fi.precisaRevisao?`<span class="warn-badge">Revisar preço</span>`:""}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+              MC desejada: <strong>${mc}%</strong> · Tempo preparo: ${fi.tempoPreparo||0} min
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="btn-sm" onclick="openModal('ficha','${fi.id}')">Editar</button>
+            <button class="btn-sm" onclick="viewFicha('${fi.id}')">Ver ficha</button>
+            <button class="btn-sm" onclick="openGerarSKUs('${fi.id}')" style="background:var(--verde)!important;color:#fff!important;border-color:var(--verde)!important">+ Gerar SKUs</button>
+            <button class="btn-sm btn-danger" onclick="deleteDoc('fichas','${fi.id}')">✕</button>
+          </div>
+        </div>
+        <div class="ficha-tamanho-grid" style="margin-top:12px">
+          ${TAMANHOS.map(t=>{
+            const ct=calcCustoFicha(fi,t);
+            const pv=fi.precoManual?.[t]||calcPrecoSugerido(ct,mc);
+            const mcReal=calcMC(pv,ct);
+            const col=mcReal>=mc?"var(--verde)":mcReal>=(mc*0.7)?"var(--amarelo)":"var(--vermelho)";
+            return`<div class="ficha-tamanho-card" style="border-top:3px solid ${col}">
+              <div style="font-size:11px;color:var(--text-muted);font-weight:500">${t}</div>
+              <div style="font-size:10px;color:var(--text-muted)">${TAMANHO_CM[t]}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px">CT: ${fmtCurrency(ct)}</div>
+              <div style="font-size:14px;font-weight:500;color:var(--rosa);margin-top:2px">${fmtCurrency(pv)}</div>
+              <div style="font-size:10px;color:${col};margin-top:1px">MC: ${ct?calcMC(pv,ct).toFixed(1):0}%</div>
+            </div>`}).join("")}
+        </div>
+      </div>`}).join("");
+}
+
+function viewFicha(id){
+  const fi=allFichas.find(x=>x.id===id);if(!fi)return;
+  const mc=fi.margemDesejada||40;
+  const basesDesc=(fi.bases||[]).map(fb=>{const b=getBase(fb.baseId);return b?esc(b.nome):"?"}).join(", ");
+  const insDesc=(fi.ingredientes||[]).map(item=>{const ins=getInsumo(item.insumoId);return ins?`${esc(ins.nome)} (${fmtNum(item.quantidade)}${ins.unidade||""})`:"?"}).join(", ");
+
+  const body=`
+    <div class="ficha-header">
+      <h3 style="font-size:16px;margin-bottom:6px">${esc(fi.nome)}</h3>
+      <div style="display:flex;gap:12px;font-size:13px;flex-wrap:wrap">
+        <span>Categoria: <strong>${esc(fi.categoria||"—")}</strong></span>
+        <span>Tempo: <strong>${fi.tempoPreparo||0} min</strong></span>
+        <span>MC desejada: <strong>${mc}%</strong></span>
+        ${fi.rendimento?`<span>Rendimento: <strong>${esc(fi.rendimento)}</strong></span>`:""}
+      </div>
+    </div>
+    ${basesDesc?`<div class="form-group"><label class="form-label">Bases utilizadas</label><div style="font-size:13px">${basesDesc}</div></div>`:""}
+    ${insDesc?`<div class="form-group"><label class="form-label">Ingredientes diretos</label><div style="font-size:13px">${insDesc}</div></div>`:""}
+    ${fi.modoPreparo?`<div class="form-group"><label class="form-label">Modo de preparo</label><div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(fi.modoPreparo)}</div></div>`:""}
+    <hr class="divider"/>
+    <div class="section-title">Precificação por tamanho</div>
+    <div class="table-wrap"><table class="data-table" style="min-width:400px">
+      <thead><tr><th>Tamanho</th><th>CT (custo)</th><th>PV sugerido</th><th>PV manual</th><th>MC real</th></tr></thead>
+      <tbody>${TAMANHOS.map(t=>{
+        const ct=calcCustoFicha(fi,t);
+        const pvSug=calcPrecoSugerido(ct,mc);
+        const pvMan=fi.precoManual?.[t];
+        const pvFinal=pvMan||pvSug;
+        const mcReal=calcMC(pvFinal,ct);
+        const col=mcReal>=mc?"var(--verde)":mcReal>=(mc*0.7)?"var(--amarelo)":"var(--vermelho)";
+        return`<tr>
+          <td style="font-weight:500">${t} <span style="font-size:11px;color:var(--text-muted)">${TAMANHO_CM[t]}</span></td>
+          <td>${fmtCurrency(ct)}</td>
+          <td style="color:var(--azul)">${fmtCurrency(pvSug)}</td>
+          <td>${pvMan?`<strong>${fmtCurrency(pvMan)}</strong>`:`<span style="color:var(--text-muted)">—</span>`}</td>
+          <td style="color:${col};font-weight:500">${ct?mcReal.toFixed(1)+"%":"—"}</td>
+        </tr>`}).join("")}
+      </tbody>
+    </table></div>
+    ${fi.adicionais?.length?`<div class="section-title">Adicionais disponíveis</div>
+    ${fi.adicionais.map(a=>`<div class="item-row"><span style="flex:1;font-size:13px">${esc(a.nome)}</span><span style="color:var(--rosa);font-weight:500">+ ${fmtCurrency(a.preco)}</span></div>`).join("")}`:""}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button onclick="closeModal()">Fechar</button>
+      <button class="btn-primary" onclick="closeModal();openModal('ficha','${id}')">Editar</button>
+    </div>`;
+  openModalDirect("Ficha: "+fi.nome,body,true);
+}
+
+function buildFichaForm(id){
+  tempInsBase=[];tempBases=[];tempAdicionais=[];tempEmbalagens=[];
+  const fi=id?allFichas.find(x=>x.id===id):null;
+  if(fi){
+    tempInsBase=JSON.parse(JSON.stringify(fi.ingredientes||[]));
+    tempBases=JSON.parse(JSON.stringify(fi.bases||[]));
+    tempAdicionais=JSON.parse(JSON.stringify(fi.adicionais||[]));
+    tempEmbalagens=JSON.parse(JSON.stringify(fi.embalagens||[]));
+  }
+  const catOpts=CATEGORIAS_FIC.map(c=>`<option${fi?.categoria===c?" selected":""}>${c}</option>`).join("");
+  const insOpts=`<option value="">Selecionar insumo...</option>`+allInsumos.map(i=>`<option value="${i.id}">${esc(i.nome)} (${i.unidade||"un"})</option>`).join("");
+  const baseOpts=`<option value="">Selecionar base...</option>`+allBases.map(b=>`<option value="${b.id}">${esc(b.nome)} (${esc(b.tipo||"")})</option>`).join("");
+  const defMultFi={Baby:0.5,PP:0.75,P:1,M:1.25,G:1.75,GG:2.5,GGG:3};
+  const mFi=fi?.multIngredientes||defMultFi;
+
+  return`
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Nome <span class="req">*</span></label><input id="f-nome" value="${esc(fi?.nome||"")}" placeholder="Ex: Bolo de Chocolate com Ninho"/></div>
+      <div class="form-group"><label class="form-label">Categoria</label><select id="f-cat">${catOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Rendimento base</label><input id="f-rend" value="${esc(fi?.rendimento||"")}" placeholder="Ex: 1 bolo P (17cm)"/></div>
+      <div class="form-group"><label class="form-label">MC% desejada</label>
+        <input id="f-mc" type="number" step="1" min="1" max="99" value="${fi?.margemDesejada||40}" oninput="updateCustosFicha()"/>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">PV = Custo Total / (1 - MC/100)</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Custo operacional (R$/min)</label><input id="f-vpm" type="number" step="0.01" value="${fi?.valorPorMinuto||""}" placeholder="Ex: 1.74" oninput="updateCustosFicha()"/></div>
+      <div class="form-group"><label class="form-label">Tempo de preparo (min)</label><input id="f-tempo" type="number" step="1" value="${fi?.tempoPreparo||""}" placeholder="Ex: 50" oninput="updateCustosFicha()"/></div>
+    </div>
+    <hr class="divider"/>
+    <div class="section-title">Bases utilizadas</div>
+    <div id="f-bases-list">${renderFichaBaseList()}</div>
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:flex-end">
+      <div style="flex:1"><select id="f-base-sel">${baseOpts}</select></div>
+      <button type="button" onclick="addFichaBase()">+ Add base</button>
+    </div>
+    <hr class="divider"/>
+    <div class="section-title">Ingredientes diretos (não estão em nenhuma base)</div>
+    <div id="f-ins-list">${renderFichaInsList()}</div>
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:2;min-width:140px"><select id="f-ins-sel">${insOpts}</select></div>
+      <div style="flex:1;min-width:80px"><label class="form-label">Quantidade (base P)</label><input id="f-ins-qtd" type="number" step="0.001" placeholder="0.000"/></div>
+      <button type="button" onclick="addFichaIns()">+ Add</button>
+    </div>
+    ${tempInsBase.length?`<div class="form-row-4" style="margin-top:10px">${TAMANHOS.map(t=>`<div class="form-group"><label class="form-label">${t} ×</label><input id="f-mfi-${t}" type="number" step="0.01" value="${mFi[t]||1}" oninput="updateCustosFicha()"/></div>`).join("")}</div>`:""}
+    <hr class="divider"/>
+    <div class="section-title">Embalagens / utensílios por tamanho</div>
+    <div id="f-emb-list">${renderFichaEmbList()}</div>
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:2;min-width:140px"><select id="f-emb-sel">${allInsumos.filter(i=>i.categoria==="Embalagem").map(i=>`<option value="${i.id}">${esc(i.nome)}</option>`).join("")||"<option value=''>Cadastre embalagens como insumos</option>"}</select></div>
+      <button type="button" onclick="addFichaEmb()">+ Add embalagem</button>
+    </div>
+    <hr class="divider"/>
+    <div class="section-title">Adicionais (itens opcionais com preço extra)</div>
+    <div id="f-adic-list">${renderFichaAdicList()}</div>
+    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+      <input id="f-adic-nome" placeholder="Nome do adicional" style="flex:2;min-width:120px"/>
+      <input id="f-adic-preco" type="number" step="0.01" placeholder="Preço extra (R$)" style="flex:1;min-width:90px"/>
+      <button type="button" onclick="addFichaAdic()">+ Add</button>
+    </div>
+    <hr class="divider"/>
+    <div class="section-title">Preços manuais por tamanho (opcional — sobrescreve preço calculado)</div>
+    <div class="form-row-4">
+      ${TAMANHOS.map(t=>`<div class="form-group"><label class="form-label">${t}</label><input id="f-pm-${t}" type="number" step="0.01" value="${fi?.precoManual?.[t]||""}" placeholder="auto" oninput="updateCustosFicha()"/></div>`).join("")}
+    </div>
+    <hr class="divider"/>
+    <div class="section-title">Resumo de custos (ao vivo)</div>
+    <div id="f-custos-ficha" style="overflow-x:auto"></div>
+    <div class="form-group" style="margin-top:12px"><label class="form-label">Modo de preparo</label><textarea id="f-preparo" rows="4" placeholder="Descreva o passo a passo...">${esc(fi?.modoPreparo||"")}</textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button onclick="closeModal()">Cancelar</button>
+      ${id?`<button onclick="clearRevisao('${id}')" class="btn-warn btn-sm">✓ Revisão concluída</button>`:""}
+      <button class="btn-primary" onclick="saveFicha()">Salvar ficha</button>
+    </div>`;
+}
+
+function renderFichaBaseList(){
+  if(!tempBases.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhuma base adicionada.</div>`;
+  return tempBases.map((fb,i)=>{const b=getBase(fb.baseId);return`<div class="item-row">
+    <span style="flex:1;font-size:13px">${esc(b?.nome||"?")} <span class="tag">${esc(b?.tipo||"")}</span></span>
+    <button type="button" class="btn-sm btn-danger" onclick="removeFichaBase(${i})">✕</button>
+  </div>`;}).join("");
+}
+
+function renderFichaInsList(){
+  if(!tempInsBase.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhum ingrediente direto.</div>`;
+  return tempInsBase.map((item,i)=>{const ins=getInsumo(item.insumoId);return`<div class="item-row">
+    <span style="flex:1;font-size:13px">${esc(ins?.nome||"?")} · ${fmtNum(item.quantidade)} ${esc(ins?.unidade||"")} (base P)</span>
+    <button type="button" class="btn-sm btn-danger" onclick="removeFichaIns(${i})">✕</button>
+  </div>`;}).join("");
+}
+
+function renderFichaEmbList(){
+  if(!tempEmbalagens.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhuma embalagem adicionada.</div>`;
+  return tempEmbalagens.map((item,i)=>{
+    const ins=getInsumo(item.insumoId);
+    const qtdCols=TAMANHOS.map(t=>`<input type="number" step="0.01" value="${(item.quantidades||{})[t]||""}" placeholder="0" style="width:50px;padding:4px;font-size:11px" oninput="updateEmbQtd(${i},'${t}',this.value)"/>`).join(" ");
+    return`<div class="item-row" style="flex-wrap:wrap;gap:6px">
+      <span style="font-size:13px;min-width:120px">${esc(ins?.nome||"?")}</span>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--text-muted)">
+        ${TAMANHOS.map((t,idx)=>`<span>${t}:</span>${`<input type="number" step="0.01" value="${(item.quantidades||{})[t]||""}" placeholder="0" style="width:46px;padding:4px 5px;font-size:11px" oninput="updateEmbQtd(${i},'${t}',this.value)"/>`}`).join(" ")}
+      </div>
+      <button type="button" class="btn-sm btn-danger" onclick="removeFichaEmb(${i})">✕</button>
+    </div>`;}).join("");
+}
+
+function renderFichaAdicList(){
+  if(!tempAdicionais.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhum adicional.</div>`;
+  return tempAdicionais.map((a,i)=>`<div class="item-row">
+    <span style="flex:1;font-size:13px">${esc(a.nome)}</span>
+    <span style="color:var(--rosa);font-weight:500;margin-right:8px">+${fmtCurrency(a.preco)}</span>
+    <button type="button" class="btn-sm btn-danger" onclick="removeFichaAdic(${i})">✕</button>
+  </div>`).join("");
+}
+
+function addFichaBase(){const id=v("f-base-sel");if(!id)return;if(tempBases.find(b=>b.baseId===id))return alert("Base já adicionada.");tempBases.push({baseId:id,multiplicadores:{}});document.getElementById("f-bases-list").innerHTML=renderFichaBaseList();updateCustosFicha();}
+function removeFichaBase(i){tempBases.splice(i,1);document.getElementById("f-bases-list").innerHTML=renderFichaBaseList();updateCustosFicha();}
+function addFichaIns(){const insId=v("f-ins-sel");const qtd=parseFloat(v("f-ins-qtd").replace(",","."))||0;if(!insId||!qtd)return alert("Selecione insumo e quantidade.");if(tempInsBase.find(i=>i.insumoId===insId))return alert("Insumo já adicionado.");tempInsBase.push({insumoId:insId,quantidade:qtd});document.getElementById("f-ins-sel").value="";document.getElementById("f-ins-qtd").value="";document.getElementById("f-ins-list").innerHTML=renderFichaInsList();updateCustosFicha();}
+function removeFichaIns(i){tempInsBase.splice(i,1);document.getElementById("f-ins-list").innerHTML=renderFichaInsList();updateCustosFicha();}
+function addFichaEmb(){const insId=v("f-emb-sel");if(!insId)return;if(tempEmbalagens.find(e=>e.insumoId===insId))return alert("Embalagem já adicionada.");tempEmbalagens.push({insumoId:insId,quantidades:{}});document.getElementById("f-emb-list").innerHTML=renderFichaEmbList();}
+function removeFichaEmb(i){tempEmbalagens.splice(i,1);document.getElementById("f-emb-list").innerHTML=renderFichaEmbList();}
+function updateEmbQtd(i,t,val){if(!tempEmbalagens[i])return;if(!tempEmbalagens[i].quantidades)tempEmbalagens[i].quantidades={};tempEmbalagens[i].quantidades[t]=parseFloat(val)||0;}
+function addFichaAdic(){const nome=v("f-adic-nome"),preco=parseFloat(v("f-adic-preco").replace(",","."))||0;if(!nome)return;tempAdicionais.push({nome,preco});document.getElementById("f-adic-nome").value="";document.getElementById("f-adic-preco").value="";document.getElementById("f-adic-list").innerHTML=renderFichaAdicList();}
+function removeFichaAdic(i){tempAdicionais.splice(i,1);document.getElementById("f-adic-list").innerHTML=renderFichaAdicList();}
+
+function updateCustosFicha(){
+  const mc=parseFloat(v("f-mc"))||40;
+  const vpm=parseFloat(v("f-vpm").replace(",","."))||0;
+  const tempo=parseFloat(v("f-tempo").replace(",","."))||0;
+  const custoOp=vpm*tempo;
+  const mFi={};TAMANHOS.forEach(t=>{mFi[t]=parseFloat(document.getElementById("f-mfi-"+t)?.value||"1")||1;});
+
+  const el=document.getElementById("f-custos-ficha");if(!el)return;
+  const rows=TAMANHOS.map(t=>{
+    const custoBases=tempBases.reduce((sum,fb)=>{const b=getBase(fb.baseId);if(!b)return sum;const mult=(b.multiplicadores||{})[t]||1;return sum+calcCustoBase(b)*mult;},0);
+    const custoIns=tempInsBase.reduce((sum,item)=>{const ins=getInsumo(item.insumoId);if(!ins)return sum;return sum+valorUnitario(ins)*item.quantidade*(mFi[t]||1);},0);
+    const custoEmb=tempEmbalagens.reduce((sum,item)=>{const ins=getInsumo(item.insumoId);if(!ins)return sum;const qtd=(item.quantidades||{})[t]||0;return sum+valorUnitario(ins)*qtd;},0);
+    const ct=custoBases+custoIns+custoEmb+custoOp;
+    const pvMan=parseFloat(document.getElementById("f-pm-"+t)?.value)||0;
+    const pv=pvMan||calcPrecoSugerido(ct,mc);
+    const mcReal=calcMC(pv,ct);
+    const col=mcReal>=mc?"var(--verde)":mcReal>=(mc*0.7)?"var(--amarelo)":"var(--vermelho)";
+    return`<tr>
+      <td style="font-weight:500">${t} <span style="font-size:10px;color:var(--text-muted)">${TAMANHO_CM[t]}</span></td>
+      <td>${fmtCurrency(custoBases)}</td><td>${fmtCurrency(custoIns)}</td>
+      <td>${fmtCurrency(custoEmb)}</td><td>${fmtCurrency(custoOp)}</td>
+      <td style="font-weight:500">${fmtCurrency(ct)}</td>
+      <td style="color:var(--azul);font-weight:500">${fmtCurrency(pvMan||calcPrecoSugerido(ct,mc))}</td>
+      <td style="color:${col};font-weight:500">${ct?mcReal.toFixed(1)+"%":"—"}</td>
+    </tr>`;}).join("");
+
+  el.innerHTML=`<table class="data-table" style="min-width:500px">
+    <thead><tr><th>Tam.</th><th>Bases</th><th>Ing.Dir.</th><th>Embal.</th><th>Operac.</th><th>CT Total</th><th>PV (MC ${mc}%)</th><th>MC real</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function saveFicha(){
+  const nome=v("f-nome");if(!nome)return alert("Informe o nome.");
+  const mc=parseFloat(v("f-mc"))||40;
+  const mFi={};TAMANHOS.forEach(t=>{mFi[t]=parseFloat(document.getElementById("f-mfi-"+t)?.value||"1")||1;});
+  const precoManual={};TAMANHOS.forEach(t=>{const pm=parseFloat(document.getElementById("f-pm-"+t)?.value)||0;if(pm)precoManual[t]=pm;});
+  const obj={nome,categoria:v("f-cat"),rendimento:v("f-rend"),margemDesejada:mc,
+    valorPorMinuto:parseFloat(v("f-vpm").replace(",","."))||0,
+    tempoPreparo:parseFloat(v("f-tempo"))||0,
+    bases:[...tempBases],ingredientes:[...tempInsBase],embalagens:[...tempEmbalagens],
+    adicionais:[...tempAdicionais],multIngredientes:mFi,precoManual,
+    modoPreparo:v("f-preparo"),precisaRevisao:false};
+  if(editingId)await db.collection("fichas").doc(editingId).set(obj);
+  else await db.collection("fichas").add(obj);
+  closeModal();showToast("Ficha técnica salva!");
+}
+
+async function clearRevisao(id){
+  await db.collection("fichas").doc(id).update({precisaRevisao:false});
+  showToast("Revisão marcada como concluída!");
+}
+
+/* ============================================================
+   MODAL
+============================================================ */
+function openModal(type,id){
+  editingId=id||null;
+  const titles={insumo:"Insumo",base:"Base / Sub-receita",ficha:"Ficha Técnica"};
+  document.getElementById("modal-title").textContent=(id?"Editar ":"Nova ")+titles[type];
+  const inner=document.getElementById("modal-inner");
+  inner.className="modal"+(type==="ficha"?" modal-lg":"");
+  let body="";
+  if(type==="insumo")body=buildInsumoForm(id);
+  else if(type==="base")body=buildBaseForm(id);
+  else if(type==="ficha")body=buildFichaForm(id);
+  else if(type==="sku")body=buildSKUForm(id);
+  document.getElementById("modal-body").innerHTML=body;
+  document.getElementById("modal").style.display="flex";
+  if(type==="ficha")setTimeout(updateCustosFicha,100);
+  if(type==="base")setTimeout(updateCustosBase,100);
+  if(type==="insumo")calcVU();
+}
+
+function openModalDirect(title,body,lg){
+  document.getElementById("modal-title").textContent=title;
+  document.getElementById("modal-inner").className="modal"+(lg?" modal-lg":"");
+  document.getElementById("modal-body").innerHTML=body;
+  document.getElementById("modal").style.display="flex";
+}
+
+function closeModal(){document.getElementById("modal").style.display="none";editingId=null;tempInsBase=[];tempBases=[];tempAdicionais=[];tempEmbalagens=[];}
+
+/* ============================================================
+   DELETE
+============================================================ */
+async function deleteDoc(col,id){
+  if(!confirm("Excluir este registro?"))return;
+  await db.collection(col).doc(id).delete();
+  showToast("Excluído.");
+}
+
+/* ============================================================
+   IMPORT / EXPORT
+============================================================ */
+function exportCSVInsumos(){
+  const rows=[["id","nome","categoria","fornecedor","unidade","qtdEmbalagem","valorEmbalagem","valorUnitario","estoqueAtual","estoqueMinimo"]];
+  allInsumos.forEach(i=>rows.push([i.id,i.nome,i.categoria||"",i.fornecedor||"",i.unidade||"",i.qtdEmbalagem||"",i.valorEmbalagem||"",valorUnitario(i).toFixed(4),i.estoqueAtual||"",i.estoqueMinimo||""]));
+  dlCSV("insumos.csv",rows);
+}
+function exportCSVBases(){
+  const rows=[["id","nome","tipo","rendimentoBase","custoBase","ingredientes_json","multiplicadores_json"]];
+  allBases.forEach(b=>rows.push([b.id,b.nome,b.tipo||"",b.rendimentoBase||"",calcCustoBase(b).toFixed(4),JSON.stringify(b.ingredientes||[]),JSON.stringify(b.multiplicadores||{})]));
+  dlCSV("bases.csv",rows);
+}
+function exportCSVFichas(){
+  const rows=[["id","nome","categoria","mc_desejada","custo_P","pv_P","tempo_preparo"]];
+  allFichas.forEach(fi=>{const ct=calcCustoFicha(fi,"P");rows.push([fi.id,fi.nome,fi.categoria||"",fi.margemDesejada||40,ct.toFixed(2),calcPrecoSugerido(ct,fi.margemDesejada||40).toFixed(2),fi.tempoPreparo||0]);});
+  dlCSV("fichas.csv",rows);
+}
+
+async function importCSVInsumos(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=async ev=>{
+    try{
+      const bytes=new Uint8Array(ev.target.result);
+      let raw;try{raw=new TextDecoder("utf-8",{fatal:true}).decode(bytes);}catch{raw=new TextDecoder("windows-1252").decode(bytes);}
+      raw=raw.replace(/^\uFEFF/,"");
+      const lines=raw.split(/\r?\n/).filter(l=>l.trim());
+      if(lines.length<2)return;
+      const sep=lines[0].includes(";")&&!lines[0].includes(",")?";":",";
+      const header=parseCSVRow(lines[0],sep).map(h=>h.toLowerCase().trim().replace(/[^a-z0-9]/g,""));
+      let count=0;
+      for(let i=1;i<lines.length;i++){
+        const vals=parseCSVRow(lines[i],sep);if(!vals.length)continue;
+        const row={};header.forEach((h,idx)=>row[h]=vals[idx]||"");
+        if(!row.nome)continue;
+        const obj={nome:row.nome,categoria:row.categoria||"Secos",fornecedor:row.fornecedor||"",unidade:row.unidade||"un",
+          qtdEmbalagem:parseFloat(row.qtdembalagem?.replace(",","."))||0,
+          valorEmbalagem:parseFloat(row.valorembalagem?.replace(",","."))||0,
+          estoqueAtual:parseFloat(row.estoqueatual?.replace(",","."))||0,
+          estoqueMinimo:parseFloat(row.estoqueminimo?.replace(",","."))||0,
+          atualizadoEm:new Date().toISOString()};
+        const ex=allInsumos.find(x=>x.nome.toLowerCase()===row.nome.toLowerCase());
+        if(ex)await db.collection("insumos").doc(ex.id).set(obj);else await db.collection("insumos").add(obj);
+        count++;
+      }
+      showToast(`✓ ${count} insumo(s) importado(s)!`);
+    }catch(err){showToast("Erro: "+err.message,"err");}
+  };reader.readAsArrayBuffer(file);
+}
+
+function dlCSV(filename,rows){
+  const csv=rows.map(r=>r.map(val=>`"${String(val||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+  const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);a.download=filename;a.click();
+}
+function parseCSVRow(row,sep=","){const res=[];let cur="",inQ=false;for(let i=0;i<row.length;i++){const ch=row[i];if(ch==='"'){if(inQ&&row[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(ch===sep&&!inQ){res.push(cur);cur="";}else cur+=ch;}res.push(cur);return res.map(v=>v.replace(/^"|"$/g,"").trim());}
+
+/* ============================================================
+   PRODUTOS / SKUs
+============================================================ */
+
+function renderSKUs(){
+  const q=v("sku-search").toLowerCase();
+  const cat=v("sku-cat");
+  const soAtivos=document.getElementById("sku-ativos")?.checked;
+  const f=allSKUs.filter(s=>{
+    const qm=!q||s.nomeComercial?.toLowerCase().includes(q)||s.sku?.toLowerCase().includes(q)||s.categoria?.toLowerCase().includes(q);
+    const cm=!cat||s.categoria===cat;
+    const am=!soAtivos||s.ativo!==false;
+    return qm&&cm&&am;
+  }).sort((a,b)=>(a.nomeComercial||"").localeCompare(b.nomeComercial||"","pt-BR"));
+  const cnt=document.getElementById("sku-count");
+  if(cnt)cnt.textContent=f.length+" produto(s)";
+  const tb=document.getElementById("sku-list");if(!tb)return;
+  tb.innerHTML=f.length===0?`<tr><td colspan="10" class="empty">Nenhum SKU cadastrado. Gere a partir de uma Ficha Técnica!</td></tr>`:
+    f.map(s=>{
+      const fi=allFichas.find(x=>x.id===s.fichaId);
+      const ct=fi?calcCustoFicha(fi,s.tamanho):0;
+      const pv=s.precoVenda||0;
+      const mc=ct&&pv?calcMC(pv,ct):null;
+      const mcCol=mc===null?"var(--text-muted)":mc>=(fi?.margemDesejada||40)?"var(--verde)":mc>=20?"var(--amarelo)":"var(--vermelho)";
+      const statusBadge=s.ativo===false?`<span class="badge" style="background:#f5f4f2;color:#888">Inativo</span>`:`<span class="badge" style="background:var(--verde-light);color:var(--verde)">Ativo</span>`;
+      return`<tr>
+        <td><span style="font-family:monospace;font-size:12px;background:var(--cinza-light);padding:2px 6px;border-radius:4px">${esc(s.sku||"—")}</span></td>
+        <td style="font-weight:500">
+          <div style="display:flex;align-items:center;gap:8px">
+            ${s.foto?`<img src="${esc(s.foto)}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0"/>`:`<div style="width:32px;height:32px;background:var(--cinza-light);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🎂</div>`}
+            ${esc(s.nomeComercial||"")}
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--azul)">${fi?esc(fi.nome):"—"}</td>
+        <td><span class="tag">${esc(s.tamanho||"")}</span> <span style="font-size:10px;color:var(--text-muted)">${TAMANHO_CM[s.tamanho]||""}</span></td>
+        <td>${fmtCurrency(ct)}</td>
+        <td style="font-weight:500;color:var(--rosa)">${fmtCurrency(pv)}</td>
+        <td style="color:${mcCol};font-weight:500">${mc!==null?mc.toFixed(1)+"%":"—"}</td>
+        <td style="font-size:12px">${s.encomenda?s.encomenda+"h":"—"}</td>
+        <td>${statusBadge}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-sm" onclick="openModal('sku','${s.id}')">Editar</button>
+          <button class="btn-sm btn-danger" onclick="deleteDoc('skus','${s.id}')">✕</button>
+        </td>
+      </tr>`;}).join("");
+}
+
+function openGerarSKUs(fichaId){
+  const fi=allFichas.find(x=>x.id===fichaId);if(!fi)return;
+  const mc=fi.margemDesejada||40;
+  const existentes=allSKUs.filter(s=>s.fichaId===fichaId).map(s=>s.tamanho);
+  const prefix=fi.nome.split(" ").map(w=>w[0]?.toUpperCase()||"").join("").slice(0,4);
+  const novos=TAMANHOS.filter(t=>!existentes.includes(t));
+  const tamanhoRows=TAMANHOS.map(t=>{
+    const ct=calcCustoFicha(fi,t);
+    const pv=fi.precoManual?.[t]||calcPrecoSugerido(ct,mc);
+    const jaExiste=existentes.includes(t);
+    const col=calcMC(pv,ct)>=(mc)?"var(--verde)":calcMC(pv,ct)>=20?"var(--amarelo)":"var(--vermelho)";
+    return`<tr style="${jaExiste?"opacity:.5":""}">
+      <td style="font-weight:500">${t} <span style="font-size:11px;color:var(--text-muted)">${TAMANHO_CM[t]}</span></td>
+      <td>${fmtCurrency(ct)}</td>
+      <td style="color:var(--azul);font-weight:500">${fmtCurrency(pv)}</td>
+      <td style="color:${col};font-weight:500">${calcMC(pv,ct).toFixed(1)}%</td>
+      <td>${jaExiste?`<span class="badge" style="background:var(--verde-light);color:var(--verde)">✓ Já existe</span>`:`<span class="badge" style="background:var(--azul-light);color:var(--azul)">Será gerado</span>`}</td>
+    </tr>`;}).join("");
+  const body=`
+    <div style="background:var(--rosa-light);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px">
+      <div style="font-weight:500;color:var(--rosa)">${esc(fi.nome)}</div>
+      <div style="font-size:12px;color:var(--text-muted)">Categoria: ${esc(fi.categoria||"—")} · MC desejada: ${mc}%</div>
+    </div>
+    ${novos.length===0?`<div class="success-box">✓ Todos os 7 tamanhos já têm SKU gerado para esta ficha.</div>`:`<div class="info-box">Serão gerados <strong>${novos.length} SKU(s)</strong> novos: ${novos.join(", ")}. Os tamanhos já existentes serão mantidos.</div>`}
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group"><label class="form-label">Prefixo do SKU</label>
+        <input id="gsku-prefix" value="${prefix}" placeholder="Ex: BRV" style="max-width:110px"/>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Gera: ${prefix}-Baby, ${prefix}-P, ${prefix}-M...</div>
+      </div>
+      <div class="form-group"><label class="form-label">Nome comercial base</label>
+        <input id="gsku-nome" value="${esc(fi.nome)}" placeholder="Nome para o cliente"/>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group"><label class="form-label">Tempo de encomenda (horas)</label><input id="gsku-encomenda" type="number" value="48"/></div>
+      <div class="form-group"><label class="form-label">Descrição para o cliente</label><input id="gsku-desc" placeholder="Breve descrição..."/></div>
+    </div>
+    <div class="section-title">Todos os tamanhos — visão geral</div>
+    <div class="table-wrap" style="margin-bottom:14px">
+      <table class="data-table" style="min-width:300px">
+        <thead><tr><th>Tamanho</th><th>Custo</th><th>PV sugerido</th><th>MC%</th><th>Status</th></tr></thead>
+        <tbody>${tamanhoRows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeModal()">Cancelar</button>
+      ${novos.length>0?`<button class="btn-primary" onclick="gerarSKUs('${fichaId}')">Gerar ${novos.length} SKU(s) novos</button>`:`<button class="btn-primary" onclick="closeModal()">OK, já estão todos gerados</button>`}
+    </div>`;
+  openModalDirect("Gerar SKUs — "+fi.nome,body,true);
+}
+
+async function gerarSKUs(fichaId){
+  const fi=allFichas.find(x=>x.id===fichaId);if(!fi)return;
+  const mc=fi.margemDesejada||40;
+  const prefix=(v("gsku-prefix")||"SKU").toUpperCase();
+  const nomeBase=v("gsku-nome")||fi.nome;
+  const encomenda=parseInt(v("gsku-encomenda"))||48;
+  const desc=v("gsku-desc");
+  const existentesAtuais=allSKUs.filter(s=>s.fichaId===fichaId).map(s=>s.tamanho);
+  const selecionados=TAMANHOS.filter(t=>!existentesAtuais.includes(t));
+  if(!selecionados.length){closeModal();showToast("Todos os tamanhos já têm SKU gerado.","info");return;}
+  let count=0;
+  for(const t of selecionados){
+    const ct=calcCustoFicha(fi,t);
+    const pv=fi.precoManual?.[t]||calcPrecoSugerido(ct,mc);
+    await db.collection("skus").add({sku:prefix+"-"+t,nomeComercial:nomeBase+" ("+t+")",fichaId,categoria:fi.categoria||"Outro",tamanho:t,precoVenda:parseFloat(pv.toFixed(2)),encomenda,descricao:desc,ativo:true,adicionaisDisponiveis:fi.adicionais||[],criadoEm:new Date().toISOString()});
+    count++;
+  }
+  closeModal();showToast("✓ "+count+" SKU(s) gerado(s)!");
+  showPage("skus",document.querySelector(".nav-tab:nth-child(5)"));
+}
+
+function buildSKUForm(id){
+  const s=id?allSKUs.find(x=>x.id===id):null;
+  const fichaOpts=`<option value="">Nenhuma (manual)</option>`+allFichas.map(f=>`<option value="${f.id}"${s?.fichaId===f.id?" selected":""}>${esc(f.nome)}</option>`).join("");
+  const tamOpts=TAMANHOS.map(t=>`<option${s?.tamanho===t?" selected":""}>${t}</option>`).join("");
+  const catOpts=["Bolo","Docinho","Torta","Cupcake","Bem-casado","Outro"].map(c=>`<option${s?.categoria===c?" selected":""}>${c}</option>`).join("");
+  const fi=s?.fichaId?allFichas.find(x=>x.id===s.fichaId):null;
+  const ct=fi?calcCustoFicha(fi,s?.tamanho||"P"):0;
+  return`
+    <div class="form-row"><div class="form-group"><label class="form-label">Código SKU</label><input id="f-sku" value="${esc(s?.sku||"")}" placeholder="Ex: BRV-M"/></div>
+    <div class="form-group"><label class="form-label">Nome comercial *</label><input id="f-nome-com" value="${esc(s?.nomeComercial||"")}"/></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Ficha técnica</label><select id="f-ficha-id" onchange="updateSKUCost()">${fichaOpts}</select></div>
+    <div class="form-group"><label class="form-label">Tamanho</label><select id="f-tamanho" onchange="updateSKUCost()">${tamOpts}</select></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Categoria</label><select id="f-cat">${catOpts}</select></div>
+    <div class="form-group"><label class="form-label">Tempo de encomenda (h)</label><input id="f-encomenda" type="number" value="${s?.encomenda||48}"/></div></div>
+    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;color:var(--text-muted)">Custo calculado da ficha:</span>
+      <span id="f-sku-custo" style="font-size:16px;font-family:'Playfair Display',serif;color:var(--azul)">${fmtCurrency(ct)}</span>
+    </div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Preço de venda (R$)</label><input id="f-preco" type="number" step="0.01" value="${s?.precoVenda||""}" placeholder="0.00" oninput="updateSKUMC()"/></div>
+    <div class="form-group"><label class="form-label">MC% real</label><div id="f-sku-mc" style="padding:8px 11px;background:var(--cinza-light);border-radius:var(--radius-sm);font-size:14px;font-weight:500">—</div></div></div>
+    <div class="form-group"><label class="form-label">Descrição para o cliente</label><textarea id="f-desc" rows="2">${esc(s?.descricao||"")}</textarea></div>
+    <div class="form-group">
+      <label class="form-label">Foto do produto</label>
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1">
+          <input id="f-foto-url" placeholder="URL da foto (opcional)" value="${esc(s?.foto||"")}" oninput="previewFotoSKU()"/>
+          <label style="display:inline-block;margin-top:6px;padding:5px 12px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);font-size:12px;cursor:pointer">
+            📷 Upload<input type="file" accept="image/*" onchange="uploadFotoSKU(event)" style="display:none"/>
+          </label>
+        </div>
+        <div id="f-foto-preview" style="${s?.foto?'':'display:none'}">
+          <img id="f-foto-img" src="${esc(s?.foto||"")}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--cinza-border)"/>
+        </div>
+      </div>
+    </div>
+    <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" id="f-ativo" ${s?.ativo!==false?"checked":""} style="width:auto"/> Produto ativo (disponível para venda)</label></div>
+    ${s?.adicionaisDisponiveis?.length?`<div class="form-group"><label class="form-label">Adicionais disponíveis</label><div>${(s.adicionaisDisponiveis||[]).map(a=>`<span class="tag">${esc(a.nome)} +${fmtCurrency(a.preco)}</span>`).join(" ")}</div></div>`:""}
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button onclick="closeModal()">Cancelar</button><button class="btn-primary" onclick="saveSKU()">Salvar</button></div>`;
+}
+function previewFotoSKU(){
+  const url=v("f-foto-url");
+  const prev=document.getElementById("f-foto-preview");
+  const img=document.getElementById("f-foto-img");
+  if(url&&prev&&img){prev.style.display="block";img.src=url;}
+  else if(prev)prev.style.display="none";
+}
+function uploadFotoSKU(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const url=ev.target.result;
+    const inp=document.getElementById("f-foto-url");
+    const prev=document.getElementById("f-foto-preview");
+    const img=document.getElementById("f-foto-img");
+    // Store as data URL in hidden input
+    if(inp)inp.dataset.dataurl=url;
+    if(inp)inp.value="(imagem carregada)";
+    if(prev)prev.style.display="block";
+    if(img)img.src=url;
+  };r.readAsDataURL(file);
+}
+function updateSKUCost(){const fichaId=v("f-ficha-id"),tamanho=v("f-tamanho"),el=document.getElementById("f-sku-custo");if(!el)return;const fi=fichaId?allFichas.find(x=>x.id===fichaId):null;if(!fi){el.textContent="—";return;}const ct=calcCustoFicha(fi,tamanho);el.textContent=fmtCurrency(ct);const pv=fi.precoManual?.[tamanho]||calcPrecoSugerido(ct,fi.margemDesejada||40);const pr=document.getElementById("f-preco");if(pr&&!pr.value)pr.value=pv.toFixed(2);updateSKUMC();}
+function updateSKUMC(){const fichaId=v("f-ficha-id"),tamanho=v("f-tamanho"),pv=parseFloat(v("f-preco"))||0,el=document.getElementById("f-sku-mc");if(!el)return;const fi=fichaId?allFichas.find(x=>x.id===fichaId):null;const ct=fi?calcCustoFicha(fi,tamanho):0;if(!ct||!pv){el.textContent="—";el.style.color="var(--text-muted)";return;}const mc=calcMC(pv,ct);el.textContent=mc.toFixed(1)+"%";el.style.color=mc>=(fi?.margemDesejada||40)?"var(--verde)":mc>=20?"var(--amarelo)":"var(--vermelho)";}
+async function saveSKU(){const nomeComercial=v("f-nome-com");if(!nomeComercial)return alert("Informe o nome comercial.");const fichaId=v("f-ficha-id");const fi=fichaId?allFichas.find(x=>x.id===fichaId):null;const tamanho=v("f-tamanho");const fotoInp=document.getElementById("f-foto-url");
+  const foto=fotoInp?.dataset?.dataurl||v("f-foto-url")||"";
+  const obj={sku:v("f-sku"),nomeComercial,fichaId:fichaId||"",categoria:v("f-cat"),tamanho,precoVenda:parseFloat(v("f-preco"))||0,encomenda:parseInt(v("f-encomenda"))||48,descricao:v("f-desc"),foto,ativo:document.getElementById("f-ativo")?.checked!==false,adicionaisDisponiveis:fi?.adicionais||[],criadoEm:editingId?(allSKUs.find(x=>x.id===editingId)?.criadoEm||new Date().toISOString()):new Date().toISOString()};if(editingId)await db.collection("skus").doc(editingId).set(obj);else await db.collection("skus").add(obj);closeModal();showToast("SKU salvo!");}
+function exportCSVSKUs(){const rows=[["sku","nomeComercial","fichaOrigem","categoria","tamanho","custo","precoVenda","mc","encomendaHoras","ativo","descricao"]];allSKUs.forEach(s=>{const fi=allFichas.find(x=>x.id===s.fichaId);const ct=fi?calcCustoFicha(fi,s.tamanho):0;const mc=ct&&s.precoVenda?calcMC(s.precoVenda,ct).toFixed(1)+"%":"—";rows.push([s.sku||"",s.nomeComercial||"",fi?.nome||"",s.categoria||"",s.tamanho||"",ct.toFixed(2),s.precoVenda||"",mc,s.encomenda||"",s.ativo!==false?"sim":"nao",s.descricao||""]);});dlCSV("produtos_skus.csv",rows);}
+</script>
+</body>
+</html>
