@@ -1096,7 +1096,7 @@ function renderDashVendas(){
       .sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""))
       .slice(0,4);
     if(proxExpo.length===0){
-      expoEl.innerHTML=`<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px 0">Nenhuma exposição agendada — <a href="#" onclick="showPage('agenda',document.querySelector('.nav-tab:nth-child(3))');return false" style="color:var(--azul)">adicionar</a></div>`;
+      expoEl.innerHTML=`<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px 0">Nenhuma exposição agendada — <button onclick="showPage('agenda',document.querySelector('.nav-tab:nth-child(3)'));openModal('exposicao')" class="btn-sm" style="color:var(--azul);border:none;background:none;padding:0;font-size:12px;cursor:pointer;text-decoration:underline">+ adicionar</button></div>`;
     } else {
       expoEl.innerHTML=`<div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Próximas exposições</div>`+
         proxExpo.map(ev=>{
@@ -1216,17 +1216,33 @@ function renderMetaCard(totalMes, margemMes, prodVendidos){
   const inner=document.getElementById("dash-meta-inner");
   if(!card||!inner)return;
 
-  const temMeta=appMeta.faturamento>0||appMeta.margem>0;
+  // Add exposições metas to monthly meta
+  const hoje=new Date().toISOString().slice(0,10);
+  const mesStr=hoje.slice(0,7);
+  const exposMes=allAgenda.filter(ev=>
+    ev.tipo==="exposicao"&&ev.metaFaturamento>0&&
+    (ev.dataInicio||"").startsWith(mesStr)
+  );
+  const metaExpoFat=exposMes.reduce((s,ev)=>s+(ev.metaFaturamento||0),0);
+  // Use app meta + expo metas combined
+  const metaFatTotal=(appMeta.faturamento||0)+metaExpoFat;
+  const metaMarTotal=appMeta.margem||0;
+
+  const temMeta=metaFatTotal>0||metaMarTotal>0;
   if(!temMeta){card.style.display="none";return;}
   card.style.display="block";
 
+  // Override for this function scope
+  const metaFat=metaFatTotal;
+  const metaMar=metaMarTotal;
+
   // Faturamento progress
-  const pctFat=appMeta.faturamento>0?Math.min(Math.round(totalMes/appMeta.faturamento*100),100):null;
-  const pctMar=appMeta.margem>0?Math.min(Math.round(margemMes/appMeta.margem*100),100):null;
+  const pctFat=metaFat>0?Math.min(Math.round(totalMes/metaFat*100),100):null;
+  const pctMar=metaMar>0?Math.min(Math.round(margemMes/metaMar*100),100):null;
 
   // Quantos bolos faltam
-  const faltaFat=appMeta.faturamento>0?Math.max(appMeta.faturamento-totalMes,0):0;
-  const faltaMar=appMeta.margem>0?Math.max(appMeta.margem-margemMes,0):0;
+  const faltaFat=metaFat>0?Math.max(metaFat-totalMes,0):0;
+  const faltaMar=metaMar>0?Math.max(metaMar-margemMes,0):0;
   const bolosFat=appMeta.precoBoloP>0&&faltaFat>0?Math.ceil(faltaFat/appMeta.precoBoloP):0;
   const bolosMar=appMeta.precoBoloP>0&&faltaMar>0?Math.ceil(faltaMar/(appMeta.precoBoloP*0.4)):0; // margem ~40% do bolo P
 
@@ -1238,20 +1254,20 @@ function renderMetaCard(totalMes, margemMes, prodVendidos){
       <div style="font-size:11px;color:var(--text-muted)">${new Date().toLocaleString("pt-BR",{month:"long",year:"numeric"})}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      ${appMeta.margem>0?`<div>
+      ${metaMar>0?`<div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
           <span style="color:var(--text-muted);font-weight:500">Margem líquida</span>
-          <span style="color:${cor(pctMar)};font-weight:600">${formatCurrency(margemMes)} / ${formatCurrency(appMeta.margem)}</span>
+          <span style="color:${cor(pctMar)};font-weight:600">${formatCurrency(margemMes)} / ${formatCurrency(metaMar)}</span>
         </div>
         <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
           <div style="width:${pctMar}%;height:100%;background:${cor(pctMar)};border-radius:99px;transition:width .5s"></div>
         </div>
         ${bolosMar>0?`<div style="font-size:11px;color:var(--rosa);margin-top:3px">🎂 Faltam ~${bolosMar} bolos P para bater a meta</div>`:"<div style='font-size:11px;color:var(--verde);margin-top:3px'>✓ Meta de margem atingida!</div>"}
       </div>`:""}
-      ${appMeta.faturamento>0?`<div>
+      ${metaFat>0?`<div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-          <span style="color:var(--text-muted);font-weight:500">Faturamento</span>
-          <span style="color:${cor(pctFat)};font-weight:600">${formatCurrency(totalMes)} / ${formatCurrency(appMeta.faturamento)}</span>
+          <span style="color:var(--text-muted);font-weight:500">Faturamento${metaExpoFat>0?" (inclui "+exposMes.length+" expo)":""}</span>
+          <span style="color:${cor(pctFat)};font-weight:600">${formatCurrency(totalMes)} / ${formatCurrency(metaFat)}</span>
         </div>
         <div style="height:8px;background:var(--cinza-border);border-radius:99px;overflow:hidden;margin-bottom:4px">
           <div style="width:${pctFat}%;height:100%;background:${cor(pctFat)};border-radius:99px;transition:width .5s"></div>
