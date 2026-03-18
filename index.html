@@ -1000,7 +1000,8 @@ function renderDashVendas(){
     </div>
     <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 12px">
       <div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-bottom:3px">Margem líquida</div>
-      <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500;color:${margemLiq>=30?'var(--verde)':margemLiq>=15?'var(--amarelo)':'var(--vermelho)'}">${margemLiq.toFixed(1)}%</div>
+      <div style="font-size:20px;font-family:'Playfair Display',serif;font-weight:500;color:${margemLiq>=30?'var(--verde)':margemLiq>=15?'var(--amarelo)':'var(--vermelho)'}">${formatCurrency(total-custoTotal)}</div>
+      <div style="font-size:11px;color:${margemLiq>=30?'var(--verde)':margemLiq>=15?'var(--amarelo)':'var(--vermelho)'};">${margemLiq.toFixed(1)}%</div>
     </div>`;
 
   // Gráfico por dia
@@ -2352,7 +2353,10 @@ function renderRelatorios(){
     <div class="metric-card"><div class="metric-label">Pedidos</div><div class="metric-value" style="font-size:22px">${qtd}</div></div>
     <div class="metric-card"><div class="metric-label">Ticket médio</div><div class="metric-value" style="font-size:22px;color:var(--azul)">${formatCurrency(ticket)}</div></div>
     <div class="metric-card"><div class="metric-label">Pagos</div><div class="metric-value" style="font-size:22px;color:var(--verde)">${formatCurrency(pagos)}</div></div>
-    <div class="metric-card"><div class="metric-label">Margem líquida</div><div class="metric-value" style="font-size:22px;color:${margemRel>=30?'var(--verde)':margemRel>=15?'var(--amarelo)':'var(--vermelho)'}">${margemRel.toFixed(1)}%</div></div>
+    <div class="metric-card"><div class="metric-label">Margem líquida</div>
+      <div class="metric-value" style="font-size:22px;color:${margemRel>=30?'var(--verde)':margemRel>=15?'var(--amarelo)':'var(--vermelho)'}">${formatCurrency(total-custoRel)}</div>
+      <div style="font-size:12px;color:${margemRel>=30?'var(--verde)':margemRel>=15?'var(--amarelo)':'var(--vermelho)'};">${margemRel.toFixed(1)}%</div>
+    </div>
   </div>`;
 
   // Chart faturamento por dia
