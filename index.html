@@ -213,29 +213,42 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
     <!-- Step 2: Form -->
     <div id="fp-step-form" style="display:none">
       <div id="fp-user-info" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--verde-light);border-radius:var(--radius-sm);margin-bottom:14px;font-size:13px;color:var(--verde)"></div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Nome completo *</label><input id="fp-nome" placeholder="Seu nome"/></div>
-        <div class="form-group"><label class="form-label">WhatsApp *</label><input id="fp-tel" placeholder="(11) 99999-9999" oninput="maskPhone(this)" maxlength="15"/></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">E-mail</label><input id="fp-email" type="email"/></div>
-        <div class="form-group"><label class="form-label">Aniversário</label><input id="fp-aniv" type="text" placeholder="DD/MM/AAAA" oninput="maskDate(this)" maxlength="10"/></div>
-      </div>
+
+      <!-- Telefone primeiro - para detecção -->
       <div class="form-group">
-        <label class="form-label">Como nos conheceu?</label>
-        <select id="fp-origem" style="max-width:220px">
-          <option value="">Não informado</option>
-          <option value="indicacao">Indicação de amigo/cliente</option>
-          <option value="exposicao">Exposição / Evento</option>
-          <option value="redes_sociais">Redes sociais</option>
-          <option value="outros">Outros</option>
-        </select>
+        <label class="form-label">WhatsApp *</label>
+        <input id="fp-tel" placeholder="(11) 99999-9999" oninput="maskPhone(this);detectClienteExistente()" maxlength="15" inputmode="numeric"/>
       </div>
 
-      <button class="btn-primary" onclick="submitPublicForm()" style="width:100%;padding:10px;font-size:14px;margin-top:8px">Enviar cadastro</button>
+      <!-- Banner cliente encontrado -->
+      <div id="fp-cliente-banner" style="display:none;background:var(--azul-light);border:1px solid #aecbfa;border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:12px;font-size:13px">
+        <div style="font-weight:500;color:var(--azul);margin-bottom:2px">✓ Cadastro encontrado!</div>
+        <div id="fp-cliente-nome-found" style="font-size:12px;color:var(--text-muted)"></div>
+        <div style="font-size:12px;color:var(--azul);margin-top:4px">Os campos abaixo estão preenchidos com seus dados. Confirme ou atualize o que precisar.</div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nome completo *</label><input id="fp-nome" placeholder="Seu nome"/></div>
+        <div class="form-group"><label class="form-label">E-mail</label><input id="fp-email" type="email"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Aniversário</label><input id="fp-aniv" type="text" placeholder="DD/MM/AAAA" oninput="maskDate(this)" maxlength="10"/></div>
+        <div class="form-group">
+          <label class="form-label">Como nos conheceu?</label>
+          <select id="fp-origem">
+            <option value="">Não informado</option>
+            <option value="indicacao">Indicação de amigo/cliente</option>
+            <option value="exposicao">Exposição / Evento</option>
+            <option value="redes_sociais">Redes sociais</option>
+            <option value="outros">Outros</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="submitPublicForm()" style="width:100%;margin-top:8px" id="fp-submit-btn">Enviar cadastro</button>
     </div>
     <!-- Step 3: Success -->
     <div id="fp-step-success" style="display:none;text-align:center;padding:1.5rem 0">
+        <div id="fp-suc-msg" style="font-size:14px;color:var(--text-muted);margin-bottom:12px"></div>
       <div style="font-size:48px;margin-bottom:12px">🎉</div>
       <h2 style="color:var(--rosa);margin-bottom:8px">Cadastro realizado!</h2>
       <p style="font-size:13px;color:var(--text-muted)">Obrigada! Em breve entraremos em contato com novidades especiais para você.</p>
@@ -1948,15 +1961,84 @@ function parseCSVRow(row,sep=","){const res=[];let cur="",inQ=false;for(let i=0;
 /* ================================================================
    PUBLIC FORM SUBMIT
 ================================================================ */
+let fpClienteExistente=null; // stores existing client if found
+
+function detectClienteExistente(){
+  const tel=v("fp-tel");
+  const clean=tel.replace(/\D/g,"");
+  const banner=document.getElementById("fp-cliente-banner");
+  const nomeEl=document.getElementById("fp-nome");
+  const btn=document.getElementById("fp-submit-btn");
+  if(clean.length<10){
+    if(banner)banner.style.display="none";
+    fpClienteExistente=null;
+    return;
+  }
+  // Search clients
+  db.collection("clients").get().then(snap=>{
+    const found=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .find(c=>(c.telefone||"").replace(/\D/g,"")=== clean);
+    fpClienteExistente=found||null;
+    if(found){
+      // Pre-fill fields with existing data
+      if(nomeEl)nomeEl.value=found.nome||"";
+      const emailEl=document.getElementById("fp-email");
+      if(emailEl&&found.email)emailEl.value=found.email;
+      const anivEl=document.getElementById("fp-aniv");
+      if(anivEl&&found.aniversario){
+        // Convert ISO to DD/MM/AAAA
+        const parts=found.aniversario.split("-");
+        if(parts.length===3)anivEl.value=parts[2]+"/"+parts[1]+"/"+parts[0];
+      }
+      const origEl=document.getElementById("fp-origem");
+      if(origEl&&found.origem)origEl.value=found.origem;
+      // Show banner
+      const nomeFound=document.getElementById("fp-cliente-nome-found");
+      if(nomeFound)nomeFound.textContent="Olá, "+found.nome.split(" ")[0]+"! Já te conhecemos 😊";
+      if(banner)banner.style.display="block";
+      if(btn)btn.textContent="Atualizar meus dados";
+    } else {
+      if(banner)banner.style.display="none";
+      if(btn)btn.textContent="Enviar cadastro";
+    }
+  }).catch(()=>{});
+}
+
 async function submitPublicForm(){
   const user=auth.currentUser;
   if(!user){showToast("Faça login primeiro.","err");return;}
   const nome=v("fp-nome"),tel=v("fp-tel");
   if(!nome||!tel)return alert("Nome e telefone são obrigatórios.");
-  const data={nome,telefone:tel,email:user.email,aniversario:toISO(document.getElementById("fp-aniv")?.value||""),origem:document.getElementById("fp-origem")?.value||"",preferencias:[],googleUid:user.uid,googleName:user.displayName,submittedAt:new Date().toISOString()};
-  await db.collection("pendingForms").add(data);
+
+  const aniv=toISO(document.getElementById("fp-aniv")?.value||"");
+  const origem=document.getElementById("fp-origem")?.value||"";
+  const email=document.getElementById("fp-email")?.value||user.email||"";
+
+  if(fpClienteExistente){
+    // UPDATE existing client directly (no pending queue)
+    const updated={
+      ...fpClienteExistente,
+      nome,telefone:tel,email,
+      aniversario:aniv,
+      origem:origem||fpClienteExistente.origem||"",
+      atualizadoViaForm:new Date().toISOString()
+    };
+    await db.collection("clients").doc(fpClienteExistente.id).set(updated);
+  } else {
+    // NEW client — goes to pending queue for approval
+    const data={nome,telefone:tel,email,aniversario:aniv,origem,
+      preferencias:[],googleUid:user.uid,googleName:user.displayName,
+      submittedAt:new Date().toISOString()};
+    await db.collection("pendingForms").add(data);
+  }
+
   document.getElementById("fp-step-form").style.display="none";
   document.getElementById("fp-step-success").style.display="block";
+  // Update success message based on existing/new
+  const sucMsg=document.getElementById("fp-suc-msg");
+  if(sucMsg)sucMsg.textContent=fpClienteExistente
+    ?"Seus dados foram atualizados com sucesso! 🎉"
+    :"Recebemos seu cadastro! Em breve entraremos em contato. 🎂";
 }
 
 
@@ -3103,7 +3185,18 @@ window.addEventListener("DOMContentLoaded",async()=>{
     document.getElementById("form-page").style.display="flex";
     // Load config for branding
     try{const snap=await db.collection("config").doc("main").get();if(snap.exists){appConfig=snap.data();const n=appConfig.nome;if(n)document.getElementById("fp-conf-nome").textContent=n;if(appConfig.logo){const i=document.getElementById("fp-logo-img");const p=document.getElementById("fp-logo-ph");if(i&&p){i.src=appConfig.logo;i.style.display="block";p.style.display="none";}}}}catch(e){}
-    // Fill prefs
+
+    // Auto-login handler for form mode
+    auth.onAuthStateChanged(user=>{
+      if(!user)return;
+      document.getElementById("fp-step-login").style.display="none";
+      document.getElementById("fp-step-form").style.display="block";
+      const info=document.getElementById("fp-user-info");
+      if(info)info.innerHTML=`<span>✓ Conectado como <strong>${user.displayName||user.email}</strong></span>`;
+      // Pre-fill email
+      const emailEl=document.getElementById("fp-email");
+      if(emailEl&&!emailEl.value)emailEl.value=user.email||"";
+    });
 
     return;
   }
