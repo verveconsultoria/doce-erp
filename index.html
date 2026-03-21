@@ -214,9 +214,9 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
     <div id="fp-step-form" style="display:none">
       <div id="fp-user-info" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--verde-light);border-radius:var(--radius-sm);margin-bottom:14px;font-size:13px;color:var(--verde)"></div>
 
-      <!-- Telefone primeiro - para detecção -->
+      <!-- Telefone primeiro -->
       <div class="form-group">
-        <label class="form-label">WhatsApp *</label>
+        <label class="form-label">WhatsApp * <span style="font-size:11px;color:var(--text-muted)">(usamos para identificar você)</span></label>
         <input id="fp-tel" placeholder="(11) 99999-9999" oninput="maskPhone(this);detectClienteExistente()" maxlength="15" inputmode="numeric"/>
       </div>
 
@@ -224,12 +224,19 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
       <div id="fp-cliente-banner" style="display:none;background:var(--azul-light);border:1px solid #aecbfa;border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:12px;font-size:13px">
         <div style="font-weight:500;color:var(--azul);margin-bottom:2px">✓ Cadastro encontrado!</div>
         <div id="fp-cliente-nome-found" style="font-size:12px;color:var(--text-muted)"></div>
-        <div style="font-size:12px;color:var(--azul);margin-top:4px">Os campos abaixo estão preenchidos com seus dados. Confirme ou atualize o que precisar.</div>
+        <div style="font-size:12px;color:var(--azul);margin-top:4px">Confira e atualize seus dados abaixo.</div>
+      </div>
+
+      <!-- Banner duplicado -->
+      <div id="fp-dup-banner" style="display:none;background:var(--amarelo-light);border:1px solid #fde68a;border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:12px;font-size:13px">
+        <div style="font-weight:500;color:var(--amarelo);margin-bottom:6px">⚠️ Encontramos cadastros duplicados!</div>
+        <div id="fp-dup-lista"></div>
+        <button onclick="mesclarDuplicados()" style="margin-top:8px;background:var(--amarelo);color:#fff;border:none;border-radius:var(--radius-sm);padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit">Mesclar em um único cadastro</button>
       </div>
 
       <div class="form-row">
         <div class="form-group"><label class="form-label">Nome completo *</label><input id="fp-nome" placeholder="Seu nome"/></div>
-        <div class="form-group"><label class="form-label">E-mail</label><input id="fp-email" type="email"/></div>
+        <div class="form-group"><label class="form-label">E-mail</label><input id="fp-email" type="email" placeholder="seu@email.com"/></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Aniversário</label><input id="fp-aniv" type="text" placeholder="DD/MM/AAAA" oninput="maskDate(this)" maxlength="10"/></div>
@@ -244,7 +251,21 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
           </select>
         </div>
       </div>
-      <button class="btn-primary" onclick="submitPublicForm()" style="width:100%;margin-top:8px" id="fp-submit-btn">Enviar cadastro</button>
+
+      <!-- Datas especiais -->
+      <div class="form-group">
+        <label class="form-label">Datas especiais <span style="font-size:11px;color:var(--text-muted)">(aniversários de filhos, casamento...)</span></label>
+        <div id="fp-ocasioes-list"></div>
+        <button type="button" onclick="addFpOcasiao()" style="font-size:12px;padding:4px 10px;border:1px dashed var(--cinza-border);background:transparent;border-radius:var(--radius-sm);cursor:pointer;margin-top:4px">+ Adicionar data especial</button>
+      </div>
+
+      <!-- Produtos de interesse -->
+      <div class="form-group">
+        <label class="form-label">Produtos de interesse <span style="font-size:11px;color:var(--text-muted)">(selecione os que te interessam)</span></label>
+        <div id="fp-produtos-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+      </div>
+
+      <button class="btn-primary" onclick="submitPublicForm()" style="width:100%;margin-top:14px" id="fp-submit-btn">Enviar cadastro</button>
     </div>
     <!-- Step 3: Success -->
     <div id="fp-step-success" style="display:none;text-align:center;padding:1.5rem 0">
@@ -1961,47 +1982,167 @@ function parseCSVRow(row,sep=","){const res=[];let cur="",inQ=false;for(let i=0;
 /* ================================================================
    PUBLIC FORM SUBMIT
 ================================================================ */
-let fpClienteExistente=null; // stores existing client if found
+let fpClienteExistente=null;
+let fpDuplicados=[];
+let fpOcasioes=[];
 
 function detectClienteExistente(){
   const tel=v("fp-tel");
   const clean=tel.replace(/\D/g,"");
   const banner=document.getElementById("fp-cliente-banner");
-  const nomeEl=document.getElementById("fp-nome");
+  const dupBanner=document.getElementById("fp-dup-banner");
   const btn=document.getElementById("fp-submit-btn");
+
   if(clean.length<10){
     if(banner)banner.style.display="none";
-    fpClienteExistente=null;
+    if(dupBanner)dupBanner.style.display="none";
+    fpClienteExistente=null;fpDuplicados=[];
     return;
   }
-  // Search clients
+
   db.collection("clients").get().then(snap=>{
-    const found=snap.docs.map(d=>({id:d.id,...d.data()}))
-      .find(c=>(c.telefone||"").replace(/\D/g,"")=== clean);
-    fpClienteExistente=found||null;
-    if(found){
-      // Pre-fill fields with existing data
-      if(nomeEl)nomeEl.value=found.nome||"";
-      const emailEl=document.getElementById("fp-email");
-      if(emailEl&&found.email)emailEl.value=found.email;
-      const anivEl=document.getElementById("fp-aniv");
-      if(anivEl&&found.aniversario){
-        // Convert ISO to DD/MM/AAAA
-        const parts=found.aniversario.split("-");
-        if(parts.length===3)anivEl.value=parts[2]+"/"+parts[1]+"/"+parts[0];
+    const todos=snap.docs.map(d=>({id:d.id,...d.data()}));
+
+    // Find by phone
+    const porTel=todos.filter(c=>(c.telefone||"").replace(/\D/g,"")===clean);
+
+    if(porTel.length>1){
+      // DUPLICATES found
+      fpDuplicados=porTel;
+      fpClienteExistente=porTel[0];
+      preencherFormulario(porTel[0]);
+      if(banner)banner.style.display="none";
+      if(dupBanner){
+        dupBanner.style.display="block";
+        const lista=document.getElementById("fp-dup-lista");
+        if(lista)lista.innerHTML=porTel.map((c,i)=>
+          `<div style="font-size:12px;padding:4px 0;border-bottom:0.5px solid #fde68a">
+            <strong>${c.nome}</strong> · ${c.pipeline||""} · ${c.email||"sem e-mail"}
+            ${i===0?` <span style="font-size:10px;background:var(--amarelo);color:#fff;padding:1px 5px;border-radius:99px">base</span>`:""}
+          </div>`).join("");
       }
-      const origEl=document.getElementById("fp-origem");
-      if(origEl&&found.origem)origEl.value=found.origem;
-      // Show banner
-      const nomeFound=document.getElementById("fp-cliente-nome-found");
-      if(nomeFound)nomeFound.textContent="Olá, "+found.nome.split(" ")[0]+"! Já te conhecemos 😊";
-      if(banner)banner.style.display="block";
+      if(btn)btn.textContent="Atualizar dados";
+    } else if(porTel.length===1){
+      // Single match
+      fpClienteExistente=porTel[0];fpDuplicados=[];
+      preencherFormulario(porTel[0]);
+      if(dupBanner)dupBanner.style.display="none";
+      if(banner){
+        banner.style.display="block";
+        const nf=document.getElementById("fp-cliente-nome-found");
+        if(nf)nf.textContent="Olá, "+porTel[0].nome.split(" ")[0]+"! Já te conhecemos 😊";
+      }
       if(btn)btn.textContent="Atualizar meus dados";
     } else {
+      // Not found - check by name similarity for potential duplicates
+      fpClienteExistente=null;fpDuplicados=[];
       if(banner)banner.style.display="none";
+      if(dupBanner)dupBanner.style.display="none";
       if(btn)btn.textContent="Enviar cadastro";
     }
+  }).catch(e=>console.warn("detect:",e));
+}
+
+function preencherFormulario(c){
+  const set=(id,val)=>{const el=document.getElementById(id);if(el&&val)el.value=val;};
+  set("fp-nome",c.nome||"");
+  set("fp-email",c.email||"");
+  set("fp-origem",c.origem||"");
+  if(c.aniversario){
+    const parts=c.aniversario.split("-");
+    if(parts.length===3){
+      const el=document.getElementById("fp-aniv");
+      if(el)el.value=parts[2]+"/"+parts[1]+"/"+parts[0];
+    }
+  }
+  // Ocasioes
+  fpOcasioes=JSON.parse(JSON.stringify(c.ocasioes||[]));
+  renderFpOcasioes();
+  // Produtos interesse
+  renderFpProdutos(c.produtos||[]);
+}
+
+function addFpOcasiao(){
+  fpOcasioes.push({ocasiao:"Aniversário",pessoa:"",relacao:"",data:""});
+  renderFpOcasioes();
+}
+
+function renderFpOcasioes(){
+  const el=document.getElementById("fp-ocasioes-list");
+  if(!el)return;
+  if(!fpOcasioes.length){el.innerHTML="";return;}
+  el.innerHTML=fpOcasioes.map((o,i)=>`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
+      <select onchange="fpOcasioes[${i}].ocasiao=this.value" style="font-size:12px;padding:5px 6px">
+        <option${o.ocasiao==="Aniversário"?" selected":""}>Aniversário</option>
+        <option${o.ocasiao==="Casamento"?" selected":""}>Casamento</option>
+        <option${o.ocasiao==="Formatura"?" selected":""}>Formatura</option>
+        <option${o.ocasiao==="Outro"?" selected":""}>Outro</option>
+      </select>
+      <input placeholder="De quem?" value="${esc(o.pessoa||"")}" oninput="fpOcasioes[${i}].pessoa=this.value" style="font-size:12px;padding:5px 6px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm)"/>
+      <input type="text" placeholder="DD/MM/AAAA" value="${o.data?o.data.split("-").reverse().join("/"):""}" oninput="fpOcasioes[${i}].data=toISO(this.value)" style="font-size:12px;padding:5px 6px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm)"/>
+      <button onclick="fpOcasioes.splice(${i},1);renderFpOcasioes()" style="background:transparent;border:none;color:var(--vermelho);cursor:pointer;font-size:16px">✕</button>
+    </div>`).join("");
+}
+
+let fpProdutosSelecionados=[];
+function renderFpProdutos(selecionados){
+  fpProdutosSelecionados=[...selecionados];
+  const el=document.getElementById("fp-produtos-list");
+  if(!el)return;
+  // Load SKUs if available
+  db.collection("skus").get().then(snap=>{
+    const skus=snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>s.ativo!==false);
+    if(!skus.length){el.innerHTML=`<div style="font-size:12px;color:var(--text-muted)">Nenhum produto cadastrado ainda.</div>`;return;}
+    el.innerHTML=skus.slice(0,12).map(s=>{
+      const sel=fpProdutosSelecionados.includes(s.id);
+      return`<button type="button" onclick="toggleFpProduto('${s.id}',this)"
+        style="padding:4px 10px;font-size:12px;border-radius:99px;border:1px solid ${sel?"var(--rosa)":"var(--cinza-border)"};background:${sel?"var(--rosa-light)":"transparent"};cursor:pointer;color:${sel?"var(--rosa)":"var(--text-muted)"}">
+        ${esc(s.nomeComercial||"")}
+      </button>`;}).join("");
   }).catch(()=>{});
+}
+function toggleFpProduto(id,btn){
+  const idx=fpProdutosSelecionados.indexOf(id);
+  if(idx>=0)fpProdutosSelecionados.splice(idx,1);
+  else fpProdutosSelecionados.push(id);
+  btn.style.borderColor=fpProdutosSelecionados.includes(id)?"var(--rosa)":"var(--cinza-border)";
+  btn.style.background=fpProdutosSelecionados.includes(id)?"var(--rosa-light)":"transparent";
+  btn.style.color=fpProdutosSelecionados.includes(id)?"var(--rosa)":"var(--text-muted)";
+}
+
+async function mesclarDuplicados(){
+  if(!fpDuplicados.length)return;
+  if(!confirm(`Mesclar ${fpDuplicados.length} cadastros em um só? O mais completo será mantido.`))return;
+
+  // Keep first, merge data from others into it
+  const base={...fpDuplicados[0]};
+  fpDuplicados.slice(1).forEach(c=>{
+    if(!base.email&&c.email)base.email=c.email;
+    if(!base.aniversario&&c.aniversario)base.aniversario=c.aniversario;
+    if(!base.origem&&c.origem)base.origem=c.origem;
+    const ocs=[...(base.ocasioes||[]),...(c.ocasioes||[])];
+    base.ocasioes=ocs.filter((o,i,a)=>a.findIndex(x=>x.pessoa===o.pessoa&&x.data===o.data)===i);
+    const prods=[...(base.produtos||[]),...(c.produtos||[])];
+    base.produtos=[...new Set(prods)];
+    base.notas=(base.notas||"")+(c.notas?"
+"+c.notas:"");
+  });
+
+  try{
+    // Update base
+    await db.collection("clients").doc(base.id).set(base);
+    // Delete duplicates
+    for(const c of fpDuplicados.slice(1)){
+      await db.collection("clients").doc(c.id).delete();
+    }
+    fpClienteExistente=base;fpDuplicados=[];
+    document.getElementById("fp-dup-banner").style.display="none";
+    document.getElementById("fp-cliente-banner").style.display="block";
+    document.getElementById("fp-cliente-nome-found").textContent="Cadastros mesclados com sucesso!";
+    preencherFormulario(base);
+    showToast("✓ Cadastros mesclados!");
+  }catch(e){alert("Erro ao mesclar: "+e.message);}
 }
 
 async function submitPublicForm(){
@@ -2015,18 +2156,20 @@ async function submitPublicForm(){
   const email=document.getElementById("fp-email")?.value||user.email||"";
 
   if(fpClienteExistente){
-    // UPDATE existing client directly (no pending queue)
+    // UPDATE existing directly
     const updated={
       ...fpClienteExistente,
-      nome,telefone:tel,email,
-      aniversario:aniv,
+      nome,telefone:tel,email,aniversario:aniv,
       origem:origem||fpClienteExistente.origem||"",
+      ocasioes:fpOcasioes,
+      produtos:fpProdutosSelecionados,
       atualizadoViaForm:new Date().toISOString()
     };
     await db.collection("clients").doc(fpClienteExistente.id).set(updated);
   } else {
-    // NEW client — goes to pending queue for approval
+    // NEW — goes to pending queue
     const data={nome,telefone:tel,email,aniversario:aniv,origem,
+      ocasioes:fpOcasioes,produtos:fpProdutosSelecionados,
       preferencias:[],googleUid:user.uid,googleName:user.displayName,
       submittedAt:new Date().toISOString()};
     await db.collection("pendingForms").add(data);
@@ -2034,1237 +2177,10 @@ async function submitPublicForm(){
 
   document.getElementById("fp-step-form").style.display="none";
   document.getElementById("fp-step-success").style.display="block";
-  // Update success message based on existing/new
   const sucMsg=document.getElementById("fp-suc-msg");
   if(sucMsg)sucMsg.textContent=fpClienteExistente
-    ?"Seus dados foram atualizados com sucesso! 🎉"
+    ?"Dados atualizados com sucesso! Obrigada 😊"
     :"Recebemos seu cadastro! Em breve entraremos em contato. 🎂";
 }
 
 
-/* ================================================================
-   LOCALSTORAGE MIGRATION
-================================================================ */
-function checkLocalStorageMigration(){
-  const oldClients=JSON.parse(localStorage.getItem("crm_clients")||"[]");
-  const oldProdutos=JSON.parse(localStorage.getItem("crm_produtos")||"[]");
-  const oldEmpresas=JSON.parse(localStorage.getItem("crm_empresas")||"[]");
-  const alreadyMigrated=localStorage.getItem("crm_migrated_to_firebase");
-  if(alreadyMigrated)return;
-  const total=oldClients.length+oldProdutos.length+oldEmpresas.length;
-  if(total===0)return;
-  // Only show banner if Firebase collections are empty
-  if(allClients.length>0)return;
-  showMigrationBanner(oldClients,oldProdutos,oldEmpresas);
-}
-
-function showMigrationBanner(clients,produtos,empresas){
-  const total=clients.length+produtos.length+empresas.length;
-  const banner=document.createElement("div");
-  banner.id="migration-banner";
-  banner.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow-md);z-index:9000;max-width:480px;width:90%;font-family:'DM Sans',sans-serif";
-  banner.innerHTML=`
-    <div style="font-weight:500;font-size:14px;margin-bottom:6px;color:var(--rosa)">📦 Dados encontrados no histórico local</div>
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Encontramos <strong>${clients.length} cliente(s)</strong>, <strong>${produtos.length} produto(s)</strong> e <strong>${empresas.length} empresa(s)</strong> salvos anteriormente neste navegador. Deseja migrar para o Firebase?</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">⚠️ Se a migração falhar, abra o Console do navegador (F12) para ver o detalhe do erro.</div>
-    <div style="display:flex;gap:8px">
-      <button onclick="migrateLocalStorage()" style="flex:1;background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:8px;font-size:13px;cursor:pointer;font-family:inherit">✓ Migrar agora</button>
-      <button onclick="dismissMigration()" style="flex:1;background:transparent;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px;font-size:13px;cursor:pointer;font-family:inherit">Fechar</button>
-    </div>`;
-  document.body.appendChild(banner);
-}
-
-async function migrateLocalStorage(){
-  const banner=document.getElementById("migration-banner");
-  if(banner)banner.innerHTML=`<div style="text-align:center;padding:8px;font-size:13px;color:var(--text-muted)">Migrando dados... aguarde.</div>`;
-
-  const oldClients=JSON.parse(localStorage.getItem("crm_clients")||"[]");
-  const oldProdutos=JSON.parse(localStorage.getItem("crm_produtos")||"[]");
-  const oldEmpresas=JSON.parse(localStorage.getItem("crm_empresas")||"[]");
-  const oldTemplates=JSON.parse(localStorage.getItem("crm_templates")||"[]");
-  const oldCats=JSON.parse(localStorage.getItem("crm_categorias")||"[]");
-  const oldSabs=JSON.parse(localStorage.getItem("crm_sabores")||"[]");
-
-  let ok=0,fail=0,failMsgs=[];
-
-  // Helper: clean object removing undefined values
-  const clean=obj=>JSON.parse(JSON.stringify(obj,(k,v)=>v===undefined?"":v));
-
-  // Migrate clients — one by one, continue on error
-  for(const c of oldClients){
-    try{
-      const rawId=String(c.id||uid());
-      const id=rawId.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();
-      const obj=clean({...c,id,
-        ocasioes:Array.isArray(c.ocasioes)?c.ocasioes:[],
-        produtos:Array.isArray(c.produtos)?c.produtos:[],
-        preferencias:Array.isArray(c.preferencias)?c.preferencias:[],
-        msgStatus:c.msgStatus||{},
-        criadoEm:c.criadoEm||new Date().toISOString().slice(0,10)
-      });
-      await db.collection("clients").doc(id).set(obj);
-      ok++;
-    }catch(e){fail++;failMsgs.push("Cliente "+c.nome+": "+e.message);}
-  }
-
-  for(const p of oldProdutos){
-    try{
-      const rawId=String(p.id||uid());
-      const id=rawId.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();
-      await db.collection("produtos").doc(id).set(clean({...p,id}));
-      ok++;
-    }catch(e){fail++;failMsgs.push("Produto "+p.nome+": "+e.message);}
-  }
-
-  for(const e of oldEmpresas){
-    try{
-      const rawId=String(e.id||uid());
-      const id=rawId.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();
-      const obj=clean({...e,id,exposicoes:Array.isArray(e.exposicoes)?e.exposicoes:[]});
-      await db.collection("empresas").doc(id).set(obj);
-      ok++;
-    }catch(e2){fail++;failMsgs.push("Empresa "+e.nome+": "+e2.message);}
-  }
-
-  for(const t of oldTemplates){
-    try{if(t.id)await db.collection("msgTemplates").doc(t.id).set(clean(t));}catch(e){}
-  }
-  for(const c of oldCats){
-    try{if(c&&typeof c==="string")await db.collection("categorias").add({nome:c});}catch(e){}
-  }
-  for(const s of oldSabs){
-    try{if(s&&typeof s==="string")await db.collection("sabores").add({nome:s});}catch(e){}
-  }
-
-  if(banner)banner.remove();
-
-  localStorage.setItem("crm_migrated_to_firebase","1");
-
-  // Show persistent result modal instead of vanishing toast
-  const resultDiv=document.createElement("div");
-  resultDiv.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow-md);z-index:9001;max-width:520px;width:90%;font-family:'DM Sans',sans-serif;max-height:60vh;overflow:auto";
-
-  if(fail===0){
-    resultDiv.innerHTML=`<div style="color:var(--verde);font-weight:500;font-size:14px;margin-bottom:8px">✓ Migração concluída!</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">${ok} registro(s) migrado(s) com sucesso para o Firebase.</div>
-      <button onclick="this.parentElement.remove()" style="background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer;font-family:inherit">Fechar</button>`;
-  } else {
-    const errList=failMsgs.slice(0,10).map(m=>`<li style="margin-bottom:4px;font-size:12px">${m}</li>`).join("");
-    resultDiv.innerHTML=`<div style="color:var(--rosa);font-weight:500;font-size:14px;margin-bottom:8px">⚠️ Migração parcial</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">✓ ${ok} migrado(s) &nbsp;·&nbsp; ✗ ${fail} com erro</div>
-      <div style="font-size:12px;font-weight:500;margin-bottom:6px;color:var(--text-muted)">Detalhes dos erros:</div>
-      <ul style="padding-left:16px;margin-bottom:12px;background:var(--cinza-light);border-radius:6px;padding:10px 10px 10px 24px">${errList}${failMsgs.length>10?`<li style="font-size:12px;color:var(--text-muted)">...e mais ${failMsgs.length-10} erros</li>`:""}</ul>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Dica: os registros com erro geralmente têm campos inválidos. Você pode cadastrá-los manualmente ou tentar novamente.</div>
-      <button onclick="this.parentElement.remove()" style="background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:13px;cursor:pointer;font-family:inherit">Fechar</button>`;
-    console.error("Erros de migração:",failMsgs);
-  }
-  document.body.appendChild(resultDiv);
-}
-
-function dismissMigration(){
-  const b=document.getElementById("migration-banner");
-  if(b)b.remove();
-  // Don't mark as migrated — show again next login if data still there
-}
-function resetMigration(){
-  localStorage.removeItem("crm_migrated_to_firebase");
-  showToast("Tentando migração novamente...");
-  setTimeout(checkLocalStorageMigration,500);
-}
-
-/* ================================================================
-   CENTRAL DE DISPAROS
-================================================================ */
-
-function buildDispatchList(){
-  // Coleta todos os eventos dos clientes dentro do período
-  const periodo=parseInt(document.getElementById("disp-periodo")?.value||"7");
-  const soHoje=document.getElementById("disp-periodo")?.value==="hoje";
-  const dias=soHoje?0:periodo;
-  const events=[];
-
-  allClients.forEach(c=>{
-    // Aniversário do cliente
-    if(c.aniversario){
-      const d=daysTill(c.aniversario);
-      if(d!==null&&d<=(soHoje?0:dias)&&d>=0){
-        events.push({
-          clienteId:c.id,nome:c.nome,telefone:c.telefone,
-          tipo:"aniversario_cliente",tipoLabel:"🎂 Aniversário",
-          diasAte:d,pipeline:c.pipeline,
-          msgKey:"disp_aniv_"+c.id,
-          sent:!!(c.msgStatus?.["disp_aniv_"+c.id]),
-          defaultTemplate:"t1"
-        });
-      }
-    }
-    // Ocasiões especiais
-    (c.ocasioes||[]).forEach((o,i)=>{
-      if(!o.data)return;
-      const d=daysTill(o.data);
-      if(d!==null&&d<=(soHoje?0:dias)&&d>=0){
-        const emoji=emojiOcasiao(o.ocasiao);
-        events.push({
-          clienteId:c.id,nome:c.nome,telefone:c.telefone,
-          tipo:"ocasiao_"+i,tipoLabel:emoji+" "+o.ocasiao+" de "+o.pessoa,
-          diasAte:d,pipeline:c.pipeline,
-          pessoa:o.pessoa,relacao:o.relacao,
-          msgKey:"disp_oc_"+c.id+"_"+i,
-          sent:!!(c.msgStatus?.["disp_oc_"+c.id+"_"+i]),
-          defaultTemplate:o.ocasiao==="Aniversário"?"t3":"t2"
-        });
-      }
-    });
-  });
-
-  // Ordena por dias, depois por nome
-  events.sort((a,b)=>a.diasAte-b.diasAte||a.nome.localeCompare(b.nome));
-  return events;
-}
-
-function renderDisparos(){
-  const soHoje=document.getElementById("disp-periodo")?.value==="hoje";
-  const soPendentes=document.getElementById("disp-so-pendentes")?.checked;
-  let events=buildDispatchList();
-  const total=events.length;
-  const pendentes=events.filter(e=>!e.sent).length;
-
-  // Update badge
-  const badge=document.getElementById("disparos-badge");
-  if(badge)badge.innerHTML=pendentes>0?`<span class="pending-badge">${pendentes}</span>`:"";
-
-  if(soPendentes)events=events.filter(e=>!e.sent);
-
-  const list=document.getElementById("disp-list");
-  const summary=document.getElementById("disp-summary");
-  if(!list)return;
-
-  // Summary cards
-  if(summary){
-    const hoje=events.filter(e=>e.diasAte===0).length;
-    const amanha=events.filter(e=>e.diasAte===1).length;
-    const semana=events.filter(e=>e.diasAte<=7).length;
-    summary.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:4px">
-      <div class="metric-card" style="padding:10px 14px">
-        <div class="metric-label">Hoje</div>
-        <div class="metric-value" style="color:var(--rosa);font-size:22px">${events.filter(e=>e.diasAte===0).length}</div>
-      </div>
-      <div class="metric-card" style="padding:10px 14px">
-        <div class="metric-label">Amanhã</div>
-        <div class="metric-value" style="font-size:22px">${events.filter(e=>e.diasAte===1).length}</div>
-      </div>
-      <div class="metric-card" style="padding:10px 14px">
-        <div class="metric-label">Esta semana</div>
-        <div class="metric-value" style="color:var(--amarelo);font-size:22px">${events.filter(e=>e.diasAte<=7).length}</div>
-      </div>
-      <div class="metric-card" style="padding:10px 14px">
-        <div class="metric-label">Pendentes</div>
-        <div class="metric-value" style="color:var(--rosa);font-size:22px">${pendentes}</div>
-      </div>
-      <div class="metric-card" style="padding:10px 14px">
-        <div class="metric-label">Enviados</div>
-        <div class="metric-value" style="color:var(--verde);font-size:22px">${total-pendentes}</div>
-      </div>
-    </div>`;
-  }
-
-  if(events.length===0){
-    list.innerHTML=`<div class="empty">${soPendentes?"Nenhum disparo pendente no período 🎉":"Nenhuma data especial no período selecionado"}</div>`;
-    return;
-  }
-
-  // Agrupar por dia
-  const byDay={};
-  events.forEach(e=>{
-    const key=e.diasAte===0?"hoje":e.diasAte===1?"amanha":"d"+e.diasAte;
-    if(!byDay[key])byDay[key]={label:e.diasAte===0?"Hoje":e.diasAte===1?"Amanhã":"Em "+e.diasAte+" dias",dias:e.diasAte,items:[]};
-    byDay[key].items.push(e);
-  });
-
-  let html="";
-  Object.values(byDay).sort((a,b)=>a.dias-b.dias).forEach(day=>{
-    const dayColor=day.dias===0?"var(--rosa)":day.dias===1?"var(--amarelo)":"var(--verde)";
-    html+=`<div class="disp-day-header" style="color:${dayColor}">
-      <strong>${day.label}</strong> <span style="font-size:11px;font-weight:400">${day.items.length} cliente(s)</span>
-      <span></span>
-    </div>`;
-
-    day.items.forEach(e=>{
-      const cls=e.diasAte===0?"disp-urgente":e.diasAte<=7?"disp-proximo":"disp-ok";
-      const pc=PIPELINE_COLORS[e.pipeline]||"#888";
-      const templateOpts=allTemplates.map(t=>`<option value="${t.id}"${t.id===e.defaultTemplate?" selected":""}>${esc(t.titulo)}</option>`).join("");
-      const waMsg=buildWAMsg(e);
-      const waUrl=e.telefone?`https://wa.me/55${e.telefone.replace(/\D/g,"")}?text=${encodeURIComponent(waMsg)}`:null;
-
-      html+=`<div class="disp-card ${cls}${e.sent?" sent":""}" id="dcard-${esc(e.msgKey)}">
-        <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
-          <div style="flex:1;min-width:180px">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-              <span style="font-weight:500;font-size:14px">${esc(e.nome)}</span>
-              <span class="disp-tipo-badge ${cls}">${e.tipoLabel}</span>
-              <span class="badge" style="background:${pc}22;color:${pc}">${e.pipeline}</span>
-              ${e.sent?`<span class="badge" style="background:var(--verde-light);color:var(--verde)">✓ Enviado</span>`:""}
-            </div>
-            ${e.telefone?`<div style="font-size:12px;color:var(--text-muted)">${esc(e.telefone)}</div>`:""}
-            <div style="margin-top:8px">
-              <select class="template-select" id="tsel-${esc(e.msgKey)}" onchange="updateWALink('${esc(e.msgKey)}','${e.clienteId}','${esc(e.telefone||"")}','${esc(e.pessoa||"")}')">
-                ${templateOpts}
-              </select>
-            </div>
-            <div style="margin-top:6px;font-size:12px;color:var(--text-muted);background:var(--cinza-light);border-radius:var(--radius-sm);padding:8px 10px;line-height:1.5" id="prev-${esc(e.msgKey)}">${esc(waMsg)}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end">
-            ${waUrl?`<a href="${waUrl}" target="_blank" class="wa-btn" id="walink-${esc(e.msgKey)}" onclick="autoMarkSent('${esc(e.msgKey)}','${e.clienteId}')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-              Abrir WhatsApp
-            </a>`:`<span style="font-size:12px;color:var(--text-muted)">Sem telefone cadastrado</span>`}
-            <button class="sent-btn ${e.sent?"done":"pending"}" id="sbtn-${esc(e.msgKey)}" onclick="toggleDispSent('${esc(e.msgKey)}','${e.clienteId}',this)">
-              ${e.sent?"✓ Enviado":"○ Marcar enviado"}
-            </button>
-          </div>
-        </div>
-      </div>`;
-    });
-  });
-
-  list.innerHTML=html;
-}
-
-function buildWAMsg(e){
-  // Pega o template selecionado (ou o default)
-  const selEl=document.getElementById("tsel-"+e.msgKey);
-  const tId=selEl?selEl.value:e.defaultTemplate;
-  const template=allTemplates.find(t=>t.id===tId)||allTemplates[0];
-  if(!template)return"";
-  const primeiroNome=e.nome.split(" ")[0];
-  return template.mensagem
-    .replace(/\[Nome\]/g,primeiroNome)
-    .replace(/\[NomePessoa\]/g,e.pessoa||"alguém especial")
-    .replace(/\[Confeitaria\]/g,appConfig.nome||"nossa confeitaria");
-}
-
-function updateWALink(msgKey,clienteId,telefone,pessoa){
-  const selEl=document.getElementById("tsel-"+msgKey);
-  const tId=selEl?selEl.value:"";
-  const template=allTemplates.find(t=>t.id===tId)||allTemplates[0];
-  if(!template)return;
-  const c=allClients.find(x=>x.id===clienteId);
-  const primeiroNome=c?c.nome.split(" ")[0]:"";
-  const msg=template.mensagem
-    .replace(/\[Nome\]/g,primeiroNome)
-    .replace(/\[NomePessoa\]/g,pessoa||"alguém especial")
-    .replace(/\[Confeitaria\]/g,appConfig.nome||"nossa confeitaria");
-
-  const prev=document.getElementById("prev-"+msgKey);
-  if(prev)prev.textContent=msg;
-
-  const waLink=document.getElementById("walink-"+msgKey);
-  if(waLink&&telefone){
-    waLink.href="https://wa.me/55"+telefone.replace(/[^0-9]/g,"")+"?text="+encodeURIComponent(msg);
-  }
-}
-
-async function autoMarkSent(msgKey,clienteId){
-  // Marca como enviado automaticamente ao clicar em Abrir WhatsApp
-  const c=allClients.find(x=>x.id===clienteId);
-  if(!c)return;
-  const msgStatus={...(c.msgStatus||{}),[msgKey]:true};
-  await db.collection("clients").doc(clienteId).update({msgStatus});
-  // Update UI without full re-render
-  const card=document.getElementById("dcard-"+msgKey);
-  const btn=document.getElementById("sbtn-"+msgKey);
-  if(card)card.classList.add("sent");
-  if(btn){btn.className="sent-btn done";btn.textContent="✓ Enviado";}
-  // Update badge
-  setTimeout(()=>{
-    const pending=buildDispatchList().filter(e=>!e.sent).length;
-    const badge=document.getElementById("disparos-badge");
-    if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
-  },500);
-}
-
-async function toggleDispSent(msgKey,clienteId,btn){
-  const c=allClients.find(x=>x.id===clienteId);
-  if(!c)return;
-  const current=!!(c.msgStatus?.[msgKey]);
-  const msgStatus={...(c.msgStatus||{}),[msgKey]:!current};
-  await db.collection("clients").doc(clienteId).update({msgStatus});
-  btn.className="sent-btn "+(!current?"done":"pending");
-  btn.textContent=!current?"✓ Enviado":"○ Marcar enviado";
-  const card=document.getElementById("dcard-"+msgKey);
-  if(card){if(!current)card.classList.add("sent");else card.classList.remove("sent");}
-  setTimeout(()=>{
-    const pending=buildDispatchList().filter(e=>!e.sent).length;
-    const badge=document.getElementById("disparos-badge");
-    if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
-  },300);
-}
-
-async function markAllSent(){
-  const events=buildDispatchList().filter(e=>!e.sent);
-  if(!events.length)return showToast("Nenhum disparo pendente.");
-  if(!confirm(`Marcar ${events.length} disparo(s) como enviado?`))return;
-  // Group by client to minimize writes
-  const byClient={};
-  events.forEach(e=>{
-    if(!byClient[e.clienteId])byClient[e.clienteId]={clienteId:e.clienteId,keys:[]};
-    byClient[e.clienteId].keys.push(e.msgKey);
-  });
-  for(const {clienteId,keys} of Object.values(byClient)){
-    const c=allClients.find(x=>x.id===clienteId);
-    if(!c)continue;
-    const msgStatus={...(c.msgStatus||{})};
-    keys.forEach(k=>msgStatus[k]=true);
-    await db.collection("clients").doc(clienteId).update({msgStatus});
-  }
-  showToast(`✓ ${events.length} disparos marcados como enviados!`);
-  renderDisparos();
-}
-
-// Update disparos badge whenever clients change
-function updateDisparosBadge(){
-  const pending=buildDispatchList().filter(e=>!e.sent).length;
-  const badge=document.getElementById("disparos-badge");
-  if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
-}
-
-/* ================================================================
-   PEDIDOS
-================================================================ */
-const STATUS_PEDIDO=["Orçamento","Confirmado","Em produção","Pronto","Entregue","Pago","Cancelado"];
-const STATUS_ENCOMENDA=["Orçamento","Confirmado","Em produção","Pronto","Entregue","Pago"];
-let pedidosTabAtiva="encomendas";
-
-function setPedidosTab(tab, btn){
-  pedidosTabAtiva=tab;
-  ["encomendas","exposicao","todos"].forEach(t=>{
-    const b=document.getElementById("ptab-"+t);
-    if(!b)return;
-    if(t===tab){b.style.color="var(--rosa)";b.style.borderBottomColor="var(--rosa)";}
-    else{b.style.color="var(--text-muted)";b.style.borderBottomColor="transparent";}
-  });
-  const kv=document.getElementById("ped-encomendas-view");
-  const tv=document.getElementById("ped-table-view");
-  if(tab==="encomendas"){if(kv)kv.style.display="block";if(tv)tv.style.display="none";}
-  else{if(kv)kv.style.display="none";if(tv)tv.style.display="block";}
-  renderPedidos();
-}
-const STATUS_COLORS={"Orçamento":"#7a7572","Confirmado":"#1a73e8","Produção":"#c8820a","Entregue":"#3a7d5a","Pago":"#3a7d5a","Cancelado":"#c0392b"};
-const ORIGEM_LABEL={exposicao:"Exposição",whatsapp:"WhatsApp",goomer:"Goomer",indicacao:"Indicação",outro:"Outro"};
-const PAGTO_OPTS=["Maquininha","PIX","Dinheiro","Transferência","Outro"];
-
-function renderPedidos(){
-  const q=(v("ped-search")||"").toLowerCase();
-  const st=v("ped-status");
-  const data=v("ped-data");
-
-  let f=allPedidos.filter(p=>{
-    const qm=!q||(p.clienteNome||"").toLowerCase().includes(q)||(p.itens||[]).some(i=>i.nome?.toLowerCase().includes(q));
-    const sm=!st||p.status===st;
-    const dm=!data||p.dataEntrega===data;
-    // Tab filter
-    const tabOk=pedidosTabAtiva==="todos"
-      ?true
-      :pedidosTabAtiva==="encomendas"
-        ?p.origem!=="exposicao"
-        :p.origem==="exposicao";
-    return qm&&sm&&dm&&tabOk;
-  });
-
-  // Summary
-  const total=f.reduce((s,p)=>s+(p.total||0),0);
-  const pagos=f.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
-  const summary=document.getElementById("ped-summary");
-  if(summary)summary.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap">
-    <div class="metric-card" style="padding:8px 14px;flex:1;min-width:100px"><div class="metric-label">Pedidos</div><div class="metric-value" style="font-size:20px">${f.length}</div></div>
-    <div class="metric-card" style="padding:8px 14px;flex:1;min-width:100px"><div class="metric-label">Total</div><div class="metric-value" style="font-size:20px;color:var(--rosa)">${formatCurrency(total)}</div></div>
-    <div class="metric-card" style="padding:8px 14px;flex:1;min-width:100px"><div class="metric-label">Pagos</div><div class="metric-value" style="font-size:20px;color:var(--verde)">${formatCurrency(pagos)}</div></div>
-  </div>`;
-
-  // Kanban for encomendas
-  if(pedidosTabAtiva==="encomendas"){
-    const kanban=document.getElementById("ped-kanban");
-    if(kanban){
-      const cols=["Orçamento","Confirmado","Em produção","Pronto","Entregue","Pago"];
-      const cor2={"Orçamento":"#7a7572","Confirmado":"#1a73e8","Em produção":"#c8820a","Pronto":"#9c27b0","Entregue":"#3a7d5a","Pago":"#3a7d5a"};
-      kanban.innerHTML=cols.map(status=>{
-        const items=f.filter(p=>p.status===status);
-        const totalCol=items.reduce((s,p)=>s+(p.total||0),0);
-        return`<div style="background:var(--cinza-light);border-radius:var(--radius);padding:10px;min-height:120px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:${cor2[status]||"#888"}">${status}</span>
-            <span style="font-size:11px;color:var(--text-muted)">${items.length} · ${formatCurrency(totalCol)}</span>
-          </div>
-          ${items.length===0?`<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0">Vazio</div>`
-            :items.map(p=>{
-              const cor3=cor2[p.status]||"#888";
-              const itensStr=(p.itens||[]).map(i=>i.qty+"× "+i.nome).join(", ");
-              const diasEntrega=p.dataEntrega?Math.ceil((new Date(p.dataEntrega+"T12:00:00")-new Date())/(1000*60*60*24)):null;
-              const urgente=diasEntrega!==null&&diasEntrega<=2;
-              return`<div class="data-card" style="padding:10px 11px;margin-bottom:8px;${urgente?"border-left:3px solid var(--vermelho)":"border-left:3px solid "+cor3};cursor:pointer" onclick="openModal('pedido','${p.id}')">
-                <div style="font-weight:500;font-size:13px;margin-bottom:2px">${esc(p.clienteNome||"")}</div>
-                <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itensStr)}</div>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-                  <span style="font-size:12px;font-weight:600;color:var(--rosa)">${formatCurrency(p.total||0)}</span>
-                  ${p.dataEntrega?`<span style="font-size:10px;color:${urgente?"var(--vermelho)":"var(--text-muted)"};font-weight:${urgente?"600":"400"}">📅 ${fmtDate(p.dataEntrega)}</span>`:""}
-                </div>
-                ${p.sinal>0?`<div style="font-size:10px;color:var(--verde);margin-top:2px">✓ Sinal: ${formatCurrency(p.sinal)}</div>`:""}
-              </div>`;}).join("")}
-          <button onclick="openModal('pedido')" style="width:100%;padding:6px;border:1px dashed var(--cinza-border);background:transparent;border-radius:var(--radius-sm);font-size:12px;color:var(--text-muted);cursor:pointer;margin-top:4px">+ Adicionar</button>
-        </div>`;}).join("");
-    }
-    const tb2=document.getElementById("ped-list");if(tb2)tb2.innerHTML="";
-    return;
-  }
-
-  const tb=document.getElementById("ped-list");if(!tb)return;
-  tb.innerHTML=f.length===0?`<tr><td colspan="9" class="empty">Nenhum pedido encontrado</td></tr>`:
-    f.map(p=>{
-      const cor=STATUS_COLORS[p.status]||"#888";
-      const itensStr=(p.itens||[]).map(i=>`${i.qty}× ${i.nome}`).join(", ");
-      const cliente=allClients.find(c=>c.id===p.clienteId);
-      return`<tr>
-        <td style="white-space:nowrap;font-size:12px">${fmtDate(p.dataPedido||p.criadoEm?.slice(0,10))}</td>
-        <td>
-          <div style="font-weight:500">${esc(p.clienteNome||"—")}</div>
-          ${p.empresaNome?`<div style="font-size:11px;color:var(--text-muted)">${esc(p.empresaNome)}</div>`:""}
-        </td>
-        <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(itensStr)}">${esc(itensStr)||"—"}</td>
-        <td style="font-weight:500;color:var(--rosa);white-space:nowrap">${formatCurrency(p.total||0)}</td>
-        <td style="font-size:12px">${p.sinal>0?formatCurrency(p.sinal):"—"}</td>
-        <td><span class="tag">${esc(ORIGEM_LABEL[p.origem]||p.origem||"—")}</span></td>
-        <td><span class="badge" style="background:${cor}22;color:${cor}">${esc(p.status||"—")}</span></td>
-        <td style="font-size:12px;white-space:nowrap">${p.dataEntrega?fmtDate(p.dataEntrega):"—"}</td>
-        <td style="white-space:nowrap">
-          <button class="btn-sm" onclick="openModal('pedido','${p.id}')">Editar</button>
-          <button class="btn-sm btn-danger" onclick="deleteDoc('pedidos','${p.id}')">✕</button>
-        </td>
-      </tr>`;}).join("");
-}
-
-function verHistoricoCliente(clienteId, clienteNome){
-  const pedidos=allPedidos.filter(p=>p.clienteId===clienteId)
-    .sort((a,b)=>(b.dataPedido||b.criadoEm||"").localeCompare(a.dataPedido||a.criadoEm||""));
-  const total=pedidos.reduce((s,p)=>s+(p.total||0),0);
-  const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
-  const body=`
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-      <div class="metric-card" style="padding:10px 12px">
-        <div class="metric-label">Pedidos</div>
-        <div class="metric-value" style="font-size:22px">${pedidos.length}</div>
-      </div>
-      <div class="metric-card" style="padding:10px 12px">
-        <div class="metric-label">Total gasto</div>
-        <div class="metric-value" style="font-size:18px;color:var(--rosa)">${formatCurrency(total)}</div>
-      </div>
-      <div class="metric-card" style="padding:10px 12px">
-        <div class="metric-label">Ticket médio</div>
-        <div class="metric-value" style="font-size:18px;color:var(--azul)">${pedidos.length?formatCurrency(total/pedidos.length):"—"}</div>
-      </div>
-    </div>
-    ${pedidos.length===0?`<div class="empty">Nenhum pedido registrado para este cliente.</div>
-      <div style="margin-top:12px;text-align:center"><button class="btn-primary btn-sm" onclick="closeModal();openModal('pedido')">+ Novo pedido</button></div>`
-    :pedidos.map(p=>{
-      const cor=STATUS_COLORS[p.status]||"#888";
-      const itensStr=(p.itens||[]).map(i=>i.qty+"× "+i.nome).join(", ");
-      return`<div class="data-card" style="margin-bottom:8px;padding:10px 13px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-          <span style="font-size:12px;color:var(--text-muted)">${fmtDate(p.dataPedido||p.criadoEm?.slice(0,10))}</span>
-          <span class="badge" style="background:${cor}22;color:${cor}">${esc(p.status||"")}</span>
-          <span class="tag">${esc(ORIGEM_LABEL[p.origem]||p.origem||"")}</span>
-          <span style="margin-left:auto;font-weight:600;color:var(--rosa)">${formatCurrency(p.total||0)}</span>
-        </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(itensStr)||"Sem produtos"}</div>
-        ${p.dataEntrega?`<div style="font-size:12px;color:var(--azul)">📦 Entrega: ${fmtDate(p.dataEntrega)}</div>`:""}
-        ${p.obs?`<div style="font-size:12px;color:var(--text-muted);margin-top:2px">💬 ${esc(p.obs)}</div>`:""}
-        <div style="margin-top:8px;display:flex;gap:6px">
-          <button class="btn-sm" onclick="closeModal();openModal('pedido','${p.id}')">Editar</button>
-        </div>
-      </div>`;}).join("")}
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-      <button onclick="closeModal()">Fechar</button>
-      <button class="btn-primary btn-sm" onclick="closeModal();openModal('pedido')">+ Novo pedido</button>
-    </div>`;
-  document.getElementById("modal-title").textContent="Histórico — "+clienteNome;
-  document.getElementById("modal-body").innerHTML=body;
-  document.getElementById("modal").style.display="flex";
-}
-
-function fmtDate(d){
-  if(!d)return"—";
-  if(d.includes("-"))return d.split("-").reverse().join("/");
-  return d;
-}
-function formatCurrency(v){if(!v&&v!==0)return"—";return"R$ "+parseFloat(v).toFixed(2).replace(".",",");}
-
-function buildPedidoForm(id){
-  const p=id?allPedidos.find(x=>x.id===id):null;
-  const statusOpts=STATUS_PEDIDO.map(s=>`<option${p?.status===s?" selected":""}>${s}</option>`).join("");
-  const pagtoOpts=PAGTO_OPTS.map(s=>`<option${p?.pagamento===s?" selected":""}>${s}</option>`).join("");
-  const cliOpts=`<option value="">Selecionar cliente...</option>`+
-    [...allClients].sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"))
-    .map(c=>`<option value="${c.id}"${p?.clienteId===c.id?" selected":""}>${esc(c.nome)} ${c.telefone?("· "+c.telefone):""}</option>`).join("");
-  const origemDefault=p?.origem||"whatsapp";
-  const origemOpts=Object.entries(ORIGEM_LABEL).map(([v2,l])=>`<option value="${v2}"${origemDefault===v2?" selected":""}>${l}</option>`).join("");
-  const skuOpts=`<option value="">Selecionar SKU...</option>`+
-    allProdutos.filter(s=>s.ativo!==false)
-    .map(s=>`<option value="${s.id}" data-preco="${s.precoVenda||0}">${esc(s.sku||"")} — ${esc(s.nomeComercial||"")} (${esc(s.tamanho||"")})</option>`).join("");
-
-  // Build itens list
-  const itens=p?.itens||[];
-
-  return`
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Cliente <span class="req">*</span></label>
-        <select id="f-ped-cli">${cliOpts}</select></div>
-      <div class="form-group"><label class="form-label">Status</label>
-        <select id="f-ped-status">${statusOpts}</select></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Data do pedido</label>
-        <input id="f-ped-data" type="date" value="${p?.dataPedido||new Date().toISOString().slice(0,10)}"/></div>
-      <div class="form-group"><label class="form-label">📅 Data de entrega/retirada</label>
-        <input id="f-ped-entrega" type="date" value="${p?.dataEntrega||""}"/></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Origem</label>
-        <select id="f-ped-origem">${origemOpts}</select></div>
-      <div class="form-group"><label class="form-label">Pagamento</label>
-        <select id="f-ped-pagto">${pagtoOpts}</select></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Sinal/entrada (R$)</label>
-        <input id="f-ped-sinal" type="number" step="0.01" value="${p?.sinal||""}" placeholder="0.00"/></div>
-      <div class="form-group"><label class="form-label">Endereço de entrega (se delivery)</label>
-        <input id="f-ped-ende" value="${esc(p?.endereco||"")}" placeholder="Rua, número, bairro..."/></div>
-    </div>
-    <div class="form-group"><label class="form-label">Personalização (sabor, recheio, mensagem no bolo...)</label>
-      <input id="f-ped-pers" value="${esc(p?.personalizacao||"")}" placeholder="Ex: Recheio morango, escrita 'Feliz Aniversário Maria'"/></div>
-    <hr class="divider"/>
-    <div class="section-title">Produtos</div>
-    <div id="f-ped-itens">${renderPedidoItens(itens)}</div>
-    <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
-      <div style="flex:2;min-width:160px"><select id="f-ped-sku">${skuOpts}</select></div>
-      <div style="flex:1;min-width:70px"><input id="f-ped-qty" type="number" min="1" value="1" placeholder="Qtd"/></div>
-      <button type="button" onclick="addPedidoItem()">+ Add</button>
-    </div>
-    <div style="background:var(--cinza-light);border-radius:var(--radius-sm);padding:10px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:13px;color:var(--text-muted)">Total</span>
-      <span id="f-ped-total" style="font-size:18px;font-weight:600;color:var(--rosa);font-family:'Playfair Display',serif">${formatCurrency(p?.total||0)}</span>
-    </div>
-    <div class="form-group" style="margin-top:12px"><label class="form-label">Observações</label>
-      <textarea id="f-ped-obs" rows="2" style="font-family:inherit;font-size:13px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 10px;width:100%;resize:none;outline:none">${esc(p?.obs||"")}</textarea></div>
-    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:4px;flex-wrap:wrap">
-      ${id?`<button class="btn-danger btn-sm" onclick="if(confirm('Excluir pedido?')){deleteDoc('pedidos','${id}');closeModal()}">🗑 Excluir</button>`:"<span></span>"}
-      <div style="display:flex;gap:8px">
-        <button onclick="closeModal()">Cancelar</button>
-        <button class="btn-primary" onclick="savePedido()">Salvar pedido</button>
-      </div>
-    </div>`;
-}
-
-// Temp itens for form
-let tempPedidoItens=[];
-function renderPedidoItens(itens){
-  tempPedidoItens=[...itens];
-  if(!itens.length)return`<div style="font-size:12px;color:var(--text-muted)">Nenhum produto adicionado.</div>`;
-  return itens.map((i,idx)=>`<div class="item-row">
-    <div style="flex:1;font-size:13px"><strong>${esc(i.nome||i.sku||"")}</strong> · ${i.qty}× · <span style="color:var(--rosa)">${formatCurrency(i.subtotal)}</span></div>
-    <button type="button" class="btn-sm btn-danger" onclick="removePedidoItem(${idx})">✕</button>
-  </div>`).join("");
-}
-function addPedidoItem(){
-  const sel=document.getElementById("f-ped-sku");
-  const qty=parseInt(document.getElementById("f-ped-qty")?.value)||1;
-  if(!sel?.value)return alert("Selecione um SKU.");
-  const opt=sel.options[sel.selectedIndex];
-  const preco=parseFloat(opt.dataset.preco)||0;
-  const sku=allProdutos.find(s=>s.id===sel.value);
-  tempPedidoItens.push({skuId:sel.value,sku:sku?.sku||"",nome:sku?.nomeComercial||opt.text,qty,precoUnit:preco,subtotal:preco*qty});
-  document.getElementById("f-ped-itens").innerHTML=renderPedidoItens(tempPedidoItens);
-  updatePedidoTotal();
-}
-function removePedidoItem(idx){
-  tempPedidoItens.splice(idx,1);
-  document.getElementById("f-ped-itens").innerHTML=renderPedidoItens(tempPedidoItens);
-  updatePedidoTotal();
-}
-function updatePedidoTotal(){
-  const total=tempPedidoItens.reduce((s,i)=>s+i.subtotal,0);
-  const el=document.getElementById("f-ped-total");
-  if(el)el.textContent=formatCurrency(total);
-}
-async function savePedido(){
-  const clienteId=v("f-ped-cli");
-  if(!clienteId)return alert("Selecione um cliente.");
-  const cliente=allClients.find(c=>c.id===clienteId);
-  const total=tempPedidoItens.reduce((s,i)=>s+i.subtotal,0);
-  const obj={
-    clienteId,
-    clienteNome:cliente?.nome||"",
-    clienteTelefone:cliente?.telefone||"",
-    status:v("f-ped-status")||"Orçamento",
-    dataPedido:v("f-ped-data")||new Date().toISOString().slice(0,10),
-    dataEntrega:v("f-ped-entrega")||"",
-    origem:v("f-ped-origem")||"whatsapp",
-    pagamento:v("f-ped-pagto")||"",
-    sinal:parseFloat(v("f-ped-sinal"))||0,
-    endereco:v("f-ped-ende")||"",
-    personalizacao:v("f-ped-pers")||"",
-    itens:[...tempPedidoItens],
-    total,
-    obs:document.getElementById("f-ped-obs")?.value||"",
-    criadoEm:editingId?(allPedidos.find(p=>p.id===editingId)?.criadoEm||new Date().toISOString()):new Date().toISOString(),
-    atualizadoEm:new Date().toISOString()
-  };
-  if(editingId)await db.collection("pedidos").doc(editingId).set(obj);
-  else await db.collection("pedidos").add(obj);
-  closeModal();showToast("Pedido salvo!");
-}
-
-function exportCSVPedidos(){
-  const rows=[["data","cliente","telefone","produtos","total","pagamento","origem","status","dataEntrega","obs"]];
-  allPedidos.forEach(p=>{
-    const itensStr=(p.itens||[]).map(i=>`${i.qty}x ${i.nome}`).join(" | ");
-    rows.push([p.dataPedido||p.criadoEm?.slice(0,10)||"",p.clienteNome||"",p.clienteTelefone||"",itensStr,p.total||0,p.pagamento||"",ORIGEM_LABEL[p.origem]||p.origem||"",p.status||"",p.dataEntrega||"",p.obs||""]);
-  });
-  const csv=rows.map(r=>r.map(val=>['"',String(val||"").replace(/"/g,'""'),'"'].join("")).join(",")).join("\n");
-  const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);a.download="pedidos.csv";a.click();
-}
-
-/* ================================================================
-   RELATÓRIOS
-================================================================ */
-function getPeriodoDatas(){
-  const periodo=v("rel-periodo");
-  const hoje=new Date();hoje.setHours(23,59,59);
-  let de,ate=hoje.toISOString().slice(0,10);
-  if(periodo==="custom"){
-    de=v("rel-de")||"2000-01-01";
-    ate=v("rel-ate")||ate;
-    document.getElementById("rel-custom").style.display="flex";
-  } else {
-    document.getElementById("rel-custom").style.display="none";
-    const dias=parseInt(periodo)||30;
-    const d=new Date();d.setDate(d.getDate()-dias);
-    de=d.toISOString().slice(0,10);
-  }
-  return{de,ate};
-}
-
-function renderRelatorios(){
-  const{de,ate}=getPeriodoDatas();
-  const pedidos=allPedidos.filter(p=>{
-    const data=p.dataPedido||p.criadoEm?.slice(0,10)||"";
-    return data>=de&&data<=ate;
-  });
-
-  const total=pedidos.reduce((s,p)=>s+(p.total||0),0);
-  const qtd=pedidos.length;
-  const ticket=qtd?total/qtd:0;
-  const pagos=pedidos.filter(p=>p.status==="Pago").reduce((s,p)=>s+(p.total||0),0);
-  const custoRel=pedidos.reduce((s,p)=>{
-    return s+(p.itens||[]).reduce((ss,i)=>{
-      const sku=allProdutos.find(x=>x.id===i.skuId);
-      if(sku?.custoCalculado) return ss+(sku.custoCalculado*(i.qty||1));
-      return ss+(i.subtotal||0)*0.4; // fallback 40%
-    },0);
-  },0);
-  const margemRel=total>0?Math.round((total-custoRel)/total*100):0;
-
-  // Métricas
-  const m=document.getElementById("rel-metricas");
-  if(m)m.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
-    <div class="metric-card"><div class="metric-label">Faturamento</div><div class="metric-value" style="font-size:22px;color:var(--rosa)">${formatCurrency(total)}</div></div>
-    <div class="metric-card"><div class="metric-label">Pedidos</div><div class="metric-value" style="font-size:22px">${qtd}</div></div>
-    <div class="metric-card"><div class="metric-label">Ticket médio</div><div class="metric-value" style="font-size:22px;color:var(--azul)">${formatCurrency(ticket)}</div></div>
-    <div class="metric-card"><div class="metric-label">Pagos</div><div class="metric-value" style="font-size:22px;color:var(--verde)">${formatCurrency(pagos)}</div></div>
-    <div class="metric-card"><div class="metric-label">Margem líquida</div>
-      <div class="metric-value" style="font-size:22px;color:${margemRel>=30?'var(--verde)':margemRel>=15?'var(--amarelo)':'var(--vermelho)'}">${formatCurrency(total-custoRel)}</div>
-      <div style="font-size:12px;color:${margemRel>=30?'var(--verde)':margemRel>=15?'var(--amarelo)':'var(--vermelho)'};">${margemRel.toFixed(1)}%</div>
-    </div>
-  </div>`;
-
-  // Chart faturamento por dia
-  const porDia={};
-  pedidos.forEach(p=>{const d=p.dataPedido||p.criadoEm?.slice(0,10)||"";if(d)porDia[d]=(porDia[d]||0)+(p.total||0);});
-  const dias=Object.keys(porDia).sort();
-  const maxVal=Math.max(...Object.values(porDia),1);
-  const chart=document.getElementById("rel-chart-fat");
-  if(chart){
-    chart.innerHTML=dias.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
-      dias.map(d=>{
-        const val=porDia[d];const pct=Math.max(Math.round(val/maxVal*100),2);
-        const label=d.split("-").slice(1).reverse().join("/");
-        return`<div style="flex:1;min-width:20px;display:flex;flex-direction:column;align-items:center;gap:3px" title="${label}: ${formatCurrency(val)}">
-          <div style="font-size:9px;color:var(--text-muted);white-space:nowrap">${formatCurrency(val).replace("R$ ","")}</div>
-          <div style="width:100%;background:var(--rosa);border-radius:3px 3px 0 0;height:${pct}%" title="${label}"></div>
-          <div style="font-size:9px;color:var(--text-muted);transform:rotate(-45deg);white-space:nowrap">${label}</div>
-        </div>`;}).join("");
-  }
-
-  // Produtos mais vendidos
-  const porProd={};
-  pedidos.forEach(p=>(p.itens||[]).forEach(i=>{
-    const k=i.nome||i.sku||"?";
-    if(!porProd[k])porProd[k]={nome:k,qty:0,total:0};
-    porProd[k].qty+=i.qty||1;porProd[k].total+=(i.subtotal||0);
-  }));
-  const topProd=Object.values(porProd).sort((a,b)=>b.total-a.total).slice(0,8);
-  const maxProd=Math.max(...topProd.map(p=>p.total),1);
-  const elProd=document.getElementById("rel-produtos");
-  if(elProd)elProd.innerHTML=topProd.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
-    topProd.map(p=>{const pct=Math.round(p.total/maxProd*100);return`
-      <div style="margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
-          <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${esc(p.nome)}</span>
-          <span style="color:var(--rosa);font-weight:600">${formatCurrency(p.total)}</span>
-        </div>
-        <div style="height:5px;background:var(--cinza-border);border-radius:99px">
-          <div style="width:${pct}%;height:100%;background:var(--rosa);border-radius:99px"></div>
-        </div>
-        <div style="font-size:10px;color:var(--text-muted)">${p.qty} unidade(s)</div>
-      </div>`;}).join("");
-
-  // Por origem
-  const porOrigem={};
-  pedidos.forEach(p=>{const k=ORIGEM_LABEL[p.origem]||p.origem||"Outro";porOrigem[k]=(porOrigem[k]||0)+(p.total||0);});
-  const maxOrig=Math.max(...Object.values(porOrigem),1);
-  const elOrig=document.getElementById("rel-origens");
-  if(elOrig)elOrig.innerHTML=Object.entries(porOrigem).sort((a,b)=>b[1]-a[1]).length===0?
-    '<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
-    Object.entries(porOrigem).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{const pct=Math.round(v/maxOrig*100);return`
-      <div style="margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
-          <span style="font-weight:500">${esc(k)}</span>
-          <span style="color:var(--azul);font-weight:600">${formatCurrency(v)}</span>
-        </div>
-        <div style="height:5px;background:var(--cinza-border);border-radius:99px">
-          <div style="width:${pct}%;height:100%;background:var(--azul);border-radius:99px"></div>
-        </div>
-      </div>`;}).join("");
-
-  // Clientes top
-  const porCli={};
-  pedidos.forEach(p=>{const k=p.clienteNome||"Avulso";if(!porCli[k])porCli[k]={nome:k,pedidos:0,total:0};porCli[k].pedidos++;porCli[k].total+=(p.total||0);});
-  const topCli=Object.values(porCli).filter(c=>c.nome!=="Venda avulsa").sort((a,b)=>b.total-a.total).slice(0,8);
-  const elCli=document.getElementById("rel-clientes-top");
-  if(elCli)elCli.innerHTML=topCli.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados</div>':
-    topCli.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--cinza-border)">
-      <span style="font-size:12px;color:var(--text-muted);width:16px">${i+1}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.nome)}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${c.pedidos} pedido(s)</div>
-      </div>
-      <span style="color:var(--rosa);font-weight:600;font-size:13px;flex-shrink:0">${formatCurrency(c.total)}</span>
-    </div>`).join("");
-
-  // Por empresa/exposição
-  const porEmp={};
-  pedidos.filter(p=>p.empresaNome).forEach(p=>{const k=p.empresaNome;porEmp[k]=(porEmp[k]||0)+(p.total||0);});
-  const elEmp=document.getElementById("rel-empresas");
-  if(elEmp)elEmp.innerHTML=Object.keys(porEmp).length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem vendas em exposições</div>':
-    Object.entries(porEmp).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--cinza-border);font-size:13px">
-        <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${esc(k)}</span>
-        <span style="color:var(--verde);font-weight:600">${formatCurrency(v)}</span>
-      </div>`).join("");
-
-  // Ticket médio por semana
-  const porSemana={};
-  pedidos.forEach(p=>{
-    const d=new Date(p.dataPedido||p.criadoEm?.slice(0,10)||new Date());
-    const semana=new Date(d);semana.setDate(d.getDate()-d.getDay());
-    const k=semana.toISOString().slice(0,10);
-    if(!porSemana[k])porSemana[k]={total:0,qty:0};
-    porSemana[k].total+=(p.total||0);porSemana[k].qty++;
-  });
-  const semanas=Object.keys(porSemana).sort();
-  const maxTicket=Math.max(...semanas.map(s=>porSemana[s].total/porSemana[s].qty),1);
-  const chartTicket=document.getElementById("rel-chart-ticket");
-  if(chartTicket){
-    chartTicket.innerHTML=semanas.length===0?'<div style="font-size:12px;color:var(--text-muted)">Sem dados suficientes</div>':
-      semanas.map(s=>{
-        const ticket=porSemana[s].total/porSemana[s].qty;
-        const pct=Math.max(Math.round(ticket/maxTicket*100),4);
-        const label=s.split("-").slice(1).reverse().join("/");
-        return`<div style="flex:1;min-width:30px;display:flex;flex-direction:column;align-items:center;gap:3px" title="Semana ${label}: ${formatCurrency(ticket)}">
-          <div style="font-size:9px;color:var(--text-muted);white-space:nowrap">${formatCurrency(ticket).replace("R$ ","")}</div>
-          <div style="width:100%;background:var(--azul);border-radius:3px 3px 0 0;height:${pct}%"></div>
-          <div style="font-size:9px;color:var(--text-muted)">${label}</div>
-        </div>`;}).join("");
-  }
-
-  // Por pagamento
-  const porPagto={};
-  pedidos.forEach(p=>{const k=p.pagamento||"Não informado";porPagto[k]=(porPagto[k]||0)+(p.total||0);});
-  const elPag=document.getElementById("rel-pagamentos");
-  const cores=["var(--rosa)","var(--azul)","var(--verde)","var(--amarelo)","var(--text-muted)"];
-  if(elPag)elPag.innerHTML=Object.entries(porPagto).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>`
-    <div class="metric-card" style="padding:10px 14px;flex:1;min-width:110px;border-top:3px solid ${cores[i%cores.length]}">
-      <div class="metric-label">${esc(k)}</div>
-      <div style="font-size:16px;font-weight:600;color:${cores[i%cores.length]}">${formatCurrency(v)}</div>
-    </div>`).join("");
-}
-
-/* ================================================================
-   AGENDA
-================================================================ */
-let agendaViewMes=new Date().getMonth();
-let agendaViewAno=new Date().getFullYear();
-let agendaFiltroAtivo="proximas";
-
-function agendaMes(delta){
-  agendaViewMes+=delta;
-  if(agendaViewMes>11){agendaViewMes=0;agendaViewAno++;}
-  if(agendaViewMes<0){agendaViewMes=11;agendaViewAno--;}
-  renderAgenda();
-}
-
-function agendaFiltro(f,btn){
-  agendaFiltroAtivo=f;
-  document.querySelectorAll("#page-agenda .btn-sm").forEach(b=>{
-    b.style.background="transparent";b.style.color="";b.style.borderColor="";
-  });
-  if(btn){btn.style.background="var(--rosa)";btn.style.color="#fff";btn.style.borderColor="var(--rosa)";}
-  renderAgendaLista();
-}
-
-function renderAgenda(){
-  renderAgendaCal();
-  renderAgendaLista();
-}
-
-function renderAgendaCal(){
-  const label=document.getElementById("agenda-mes-label");
-  if(label)label.textContent=new Date(agendaViewAno,agendaViewMes,1).toLocaleString("pt-BR",{month:"long",year:"numeric"});
-  const cal=document.getElementById("agenda-cal");
-  if(!cal)return;
-
-  const primeiroDia=new Date(agendaViewAno,agendaViewMes,1).getDay();
-  const diasNoMes=new Date(agendaViewAno,agendaViewMes+1,0).getDate();
-  const hoje=new Date().toISOString().slice(0,10);
-
-  // Map exposições para dias deste mês
-  const diasComEvento={};
-  allAgenda.forEach(ev=>{
-    const di=ev.dataInicio||"";const df=ev.dataFim||di;
-    if(!di)return;
-    let cur=new Date(di+"T12:00:00");
-    const end=new Date(df+"T12:00:00");
-    while(cur<=end){
-      const k=cur.toISOString().slice(0,10);
-      if(k.startsWith(`${agendaViewAno}-${String(agendaViewMes+1).padStart(2,"0")}`)){
-        if(!diasComEvento[cur.getDate()])diasComEvento[cur.getDate()]=[];
-        diasComEvento[cur.getDate()].push(ev);
-      }
-      cur.setDate(cur.getDate()+1);
-    }
-  });
-
-  let html="";
-  // Empty cells before first day
-  for(let i=0;i<primeiroDia;i++) html+=`<div></div>`;
-  for(let d=1;d<=diasNoMes;d++){
-    const dateStr=`${agendaViewAno}-${String(agendaViewMes+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const isHoje=dateStr===hoje;
-    const evs=diasComEvento[d]||[];
-    const hasEv=evs.length>0;
-    html+=`<div onclick="${hasEv?`openAgendaDia('${dateStr}')`:""}" style="
-      aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-      border-radius:var(--radius-sm);font-size:13px;cursor:${hasEv?"pointer":"default"};
-      background:${isHoje?"var(--rosa)":hasEv?"var(--rosa-light)":"transparent"};
-      color:${isHoje?"#fff":"var(--text)"};
-      border:${hasEv&&!isHoje?"1px solid var(--rosa)":"1px solid transparent"};
-      font-weight:${isHoje||hasEv?"600":"400"};
-      transition:background .15s">
-      ${d}
-      ${hasEv?`<div style="width:5px;height:5px;border-radius:50%;background:${isHoje?"#fff":"var(--rosa)"};margin-top:2px"></div>`:""}
-    </div>`;
-  }
-  cal.innerHTML=html;
-}
-
-function openAgendaDia(dateStr){
-  const evs=allAgenda.filter(ev=>{
-    const di=ev.dataInicio||"";const df=ev.dataFim||di;
-    return dateStr>=di&&dateStr<=df;
-  });
-  if(evs.length===1){openModal("exposicao",evs[0].id);}
-  else if(evs.length>1){
-    // Show picker
-    const body=`<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">${dateStr.split("-").reverse().join("/")} — ${evs.length} eventos</div>`+
-      evs.map(e=>`<div class="data-card" style="padding:10px 12px;margin-bottom:8px;cursor:pointer" onclick="closeModal();openModal('exposicao','${e.id}')">
-        <div style="font-weight:500">${esc(e.titulo||e.empresaNome||"Exposição")}</div>
-        <div style="font-size:12px;color:var(--text-muted)">${esc(e.empresaNome||"")}</div>
-      </div>`).join("")+
-      `<button onclick="closeModal()" class="btn-sm" style="margin-top:8px;width:100%">Fechar</button>`;
-    document.getElementById("modal-title").textContent="Eventos do dia";
-    document.getElementById("modal-body").innerHTML=body;
-    document.getElementById("modal").style.display="flex";
-  }
-}
-
-function renderAgendaLista(){
-  const hoje=new Date().toISOString().slice(0,10);
-  let evs=[...allAgenda];
-  if(agendaFiltroAtivo==="proximas") evs=evs.filter(e=>(e.dataFim||e.dataInicio||"")>=hoje);
-  else if(agendaFiltroAtivo==="passadas") evs=evs.filter(e=>(e.dataFim||e.dataInicio||"")<hoje);
-  evs.sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""));
-
-  const lista=document.getElementById("agenda-lista");
-  if(!lista)return;
-  lista.innerHTML=evs.length===0?`<div class="empty">Nenhuma exposição ${agendaFiltroAtivo==="proximas"?"agendada":"encontrada"}</div>`:
-    evs.map(ev=>renderAgendaCard(ev)).join("");
-}
-
-function renderAgendaCard(ev){
-  const hoje=new Date().toISOString().slice(0,10);
-  const di=(ev.dataInicio||"").split("-").reverse().join("/");
-  const df=ev.dataFim?(ev.dataFim.split("-").reverse().join("/")):null;
-  const dataStr=df&&df!==di?`${di} → ${df}`:di;
-  const isHoje=hoje>=(ev.dataInicio||"")&&hoje<=(ev.dataFim||ev.dataInicio||"");
-  const isPast=(ev.dataFim||ev.dataInicio||"")<hoje;
-
-  // Vendas desta exposição
-  const vendasEv=allPedidos.filter(p=>p.empresaId===ev.empresaId&&p.dataPedido>=(ev.dataInicio||"")&&p.dataPedido<=(ev.dataFim||ev.dataInicio||ev.dataPedido||""));
-  const totalEv=vendasEv.reduce((s,p)=>s+(p.total||0),0);
-  const custoEv=vendasEv.reduce((s,p)=>s+(p.itens||[]).reduce((ss,i)=>{const sk=allProdutos.find(x=>x.id===i.skuId);return ss+(sk?.custoCalculado?(sk.custoCalculado*(i.qty||1)):(i.subtotal||0)*0.4);},0),0);
-  const margemEv=totalEv-custoEv;
-
-  const pctFat=ev.metaFaturamento>0?Math.min(Math.round(totalEv/ev.metaFaturamento*100),100):null;
-  const cor=pctFat===null?"var(--cinza-border)":pctFat>=100?"var(--verde)":pctFat>=70?"var(--amarelo)":"var(--rosa)";
-
-  const pdvUrl=`pdv.html`;
-
-  return`<div class="data-card" style="margin-bottom:10px;${isHoje?"border-left:3px solid var(--verde);":""}">
-    <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-          <span style="font-weight:500;font-size:14px">${esc(ev.titulo||ev.empresaNome||"Exposição")}</span>
-          ${isHoje?`<span class="badge" style="background:var(--verde-light);color:var(--verde)">● Hoje</span>`:""}
-          ${isPast?`<span class="badge" style="background:var(--cinza-light);color:var(--text-muted)">Encerrada</span>`:""}
-          <span class="tag">${esc(ev.status||"Agendada")}</span>
-        </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">
-          📅 ${dataStr} ${ev.empresaNome?`· 📍 ${esc(ev.empresaNome)}`:""}
-        </div>
-        ${ev.obs?`<div style="font-size:12px;color:var(--text-muted)">💬 ${esc(ev.obs)}</div>`:""}
-        ${ev.metaFaturamento?`<div style="margin-top:8px">
-          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
-            <span style="color:var(--text-muted)">Meta: ${formatCurrency(ev.metaFaturamento)}</span>
-            <span style="color:${cor};font-weight:600">${formatCurrency(totalEv)}${pctFat!==null?" ("+pctFat+"%)":""}</span>
-          </div>
-          <div style="height:5px;background:var(--cinza-border);border-radius:99px;overflow:hidden">
-            <div style="width:${pctFat||0}%;height:100%;background:${cor};border-radius:99px"></div>
-          </div>
-          ${ev.metaMargem?`<div style="font-size:11px;color:var(--text-muted);margin-top:3px">Margem: ${formatCurrency(margemEv)} / Meta ${formatCurrency(ev.metaMargem)}</div>`:""}
-        </div>`:""}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-        ${isHoje?`<a href="${pdvUrl}" target="_blank" style="background:var(--verde);color:#fff;padding:7px 12px;border-radius:var(--radius-sm);text-decoration:none;font-size:12px;font-weight:500;white-space:nowrap;text-align:center">🛒 Abrir PDV</a>`:""}
-        <button class="btn-sm" onclick="openModal('exposicao','${ev.id}')">Editar</button>
-        <button class="btn-sm btn-danger" onclick="deleteDoc('agenda','${ev.id}')">✕</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-function renderDashExposicoes(){
-  const hoje=new Date().toISOString().slice(0,10);
-  const proxima7=new Date();proxima7.setDate(proxima7.getDate()+7);
-  const p7=proxima7.toISOString().slice(0,10);
-
-  const ativas=allAgenda.filter(ev=>
-    ev.tipo==="exposicao"&&(ev.dataFim||ev.dataInicio||"")>=hoje&&(ev.dataInicio||"")<=p7
-  ).sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""));
-
-  const card=document.getElementById("dash-expo-card");
-  if(!card)return;
-  if(ativas.length===0){card.style.display="none";return;}
-  card.style.display="block";
-
-  card.innerHTML=`<div class="data-card" style="border-left:3px solid var(--verde)">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--verde);margin-bottom:10px">🎪 Exposições esta semana</div>
-    ${ativas.map(ev=>{
-      const isHoje=hoje>=(ev.dataInicio||"")&&hoje<=(ev.dataFim||ev.dataInicio||"");
-      const di=(ev.dataInicio||"").split("-").reverse().join("/");
-      const df=ev.dataFim&&ev.dataFim!==ev.dataInicio?(ev.dataFim.split("-").reverse().join("/")):null;
-      const vendasEv=allPedidos.filter(p=>p.empresaId===ev.empresaId&&(p.dataPedido||"")>=(ev.dataInicio||"")&&(p.dataPedido||"")<=(ev.dataFim||ev.dataInicio||""));
-      const totalEv=vendasEv.reduce((s,p)=>s+(p.total||0),0);
-      const pctFat=ev.metaFaturamento>0?Math.min(Math.round(totalEv/ev.metaFaturamento*100),100):null;
-      const faltaBolos=ev.metaFaturamento>0&&ev.precoBoloP>0?Math.max(Math.ceil((ev.metaFaturamento-totalEv)/ev.precoBoloP),0):0;
-      const cor=pctFat===null?"var(--verde)":pctFat>=100?"var(--verde)":pctFat>=70?"var(--amarelo)":"var(--rosa)";
-      return`<div style="padding:10px 0;border-bottom:0.5px solid var(--cinza-border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:500;font-size:13px">${esc(ev.titulo||ev.empresaNome||"Exposição")}
-            ${isHoje?` <span class="badge" style="background:var(--verde-light);color:var(--verde);font-size:10px">Hoje</span>`:""}
-          </div>
-          <div style="font-size:11px;color:var(--text-muted)">${di}${df?" → "+df:""}</div>
-          ${ev.metaFaturamento?`<div style="margin-top:6px">
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
-              <span>Meta ${formatCurrency(ev.metaFaturamento)}</span>
-              <span style="color:${cor};font-weight:600">${formatCurrency(totalEv)}${pctFat!==null?" · "+pctFat+"%":""}</span>
-            </div>
-            <div style="height:4px;background:var(--cinza-border);border-radius:99px">
-              <div style="width:${pctFat||0}%;height:100%;background:${cor};border-radius:99px"></div>
-            </div>
-            ${faltaBolos>0?`<div style="font-size:10px;color:var(--rosa);margin-top:2px">🎂 ~${faltaBolos} bolos P para bater a meta</div>`:""}
-          </div>`:""}
-        </div>
-        ${isHoje?`<a href="pdv.html" style="background:var(--verde);color:#fff;padding:6px 12px;border-radius:var(--radius-sm);text-decoration:none;font-size:12px;font-weight:500;white-space:nowrap">🛒 Abrir PDV</a>`:""}
-      </div>`;}).join("")}
-  </div>`;
-}
-
-function buildExposicaoForm(id){
-  const ev=id?allAgenda.find(x=>x.id===id):null;
-  const empOpts=`<option value="">Selecionar empresa...</option>`+
-    allEmpresas.sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"))
-    .map(e=>`<option value="${e.id}"${ev?.empresaId===e.id?" selected":""}>${esc(e.nome)}</option>`).join("");
-  const statusOpts=["Agendada","Em andamento","Encerrada","Cancelada"]
-    .map(s=>`<option${ev?.status===s?" selected":""}>${s}</option>`).join("");
-
-  return`
-    <div class="form-group"><label class="form-label">Título / nome do evento</label>
-      <input id="f-ag-titulo" value="${esc(ev?.titulo||"")}" placeholder="Ex: Feira de Artesanato Centro"/></div>
-    <div class="form-group"><label class="form-label">Empresa / local</label>
-      <select id="f-ag-empresa">${empOpts}</select></div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Data início <span class="req">*</span></label>
-        <input id="f-ag-di" type="date" value="${ev?.dataInicio||new Date().toISOString().slice(0,10)}"/></div>
-      <div class="form-group"><label class="form-label">Data fim (se multidia)</label>
-        <input id="f-ag-df" type="date" value="${ev?.dataFim||""}"/></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Meta de faturamento (R$) <span style="font-size:11px;color:var(--text-muted)">opcional</span></label>
-        <input id="f-ag-fat" type="number" step="100" value="${ev?.metaFaturamento||""}" placeholder="Ex: 3000"/></div>
-      <div class="form-group"><label class="form-label">Status</label>
-        <select id="f-ag-status">${statusOpts}</select></div>
-    </div>
-    <div class="form-group"><label class="form-label">Observações / logística</label>
-      <textarea id="f-ag-obs" rows="2" style="font-family:inherit;font-size:13px;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px 10px;width:100%;resize:none">${esc(ev?.obs||"")}</textarea></div>
-    <div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
-      ${id?`<button class="btn-danger" onclick="if(confirm('Excluir esta exposição?')){deleteDoc('agenda','${id}');closeModal()}" style="color:var(--vermelho);border-color:#e8b4b4">🗑 Excluir exposição</button>`:"<span></span>"}
-      <div style="display:flex;gap:8px">
-        <button onclick="closeModal()">Cancelar</button>
-        <button class="btn-primary" onclick="saveExposicao()">Salvar</button>
-      </div>
-    </div>`;
-}
-
-async function saveExposicao(){
-  const di=v("f-ag-di");if(!di)return alert("Informe a data de início.");
-  const empSel=document.getElementById("f-ag-empresa");
-  const empId=empSel?.value||"";
-  const empNome=empSel?.options[empSel.selectedIndex]?.text||"";
-  const obj={
-    titulo:v("f-ag-titulo")||empNome||"Exposição",
-    empresaId:empId,
-    empresaNome:empId?empNome:"",
-    dataInicio:di,
-    dataFim:v("f-ag-df")||di,
-    metaFaturamento:parseFloat(v("f-ag-fat"))||0,
-    status:v("f-ag-status")||"Agendada",
-    obs:document.getElementById("f-ag-obs")?.value||"",
-    tipo:"exposicao",
-    criadoEm:editingId?(allAgenda.find(a=>a.id===editingId)?.criadoEm||new Date().toISOString()):new Date().toISOString()
-  };
-  if(editingId)await db.collection("agenda").doc(editingId).set(obj);
-  else await db.collection("agenda").add(obj);
-  closeModal();showToast("Exposição salva!");
-}
-/* ================================================================
-   INIT
-================================================================ */
-window.addEventListener("DOMContentLoaded",async()=>{
-  if(isFormMode){
-    // Public form mode
-    initFirebase(FIREBASE_CONFIG);
-    auth=firebase.auth();db=firebase.firestore();
-    document.getElementById("form-page").style.display="flex";
-    // Load config for branding
-    try{const snap=await db.collection("config").doc("main").get();if(snap.exists){appConfig=snap.data();const n=appConfig.nome;if(n)document.getElementById("fp-conf-nome").textContent=n;if(appConfig.logo){const i=document.getElementById("fp-logo-img");const p=document.getElementById("fp-logo-ph");if(i&&p){i.src=appConfig.logo;i.style.display="block";p.style.display="none";}}}}catch(e){}
-
-    // Auto-login handler for form mode
-    auth.onAuthStateChanged(user=>{
-      if(!user)return;
-      document.getElementById("fp-step-login").style.display="none";
-      document.getElementById("fp-step-form").style.display="block";
-      const info=document.getElementById("fp-user-info");
-      if(info)info.innerHTML=`<span>✓ Conectado como <strong>${user.displayName||user.email}</strong></span>`;
-      // Pre-fill email
-      const emailEl=document.getElementById("fp-email");
-      if(emailEl&&!emailEl.value)emailEl.value=user.email||"";
-    });
-
-    return;
-  }
-
-  // Admin mode — config is hardcoded, vai direto pro login
-  if(!initFirebase(FIREBASE_CONFIG)){
-    document.getElementById("setup-screen").style.display="flex";
-    document.getElementById("setup-screen").innerHTML='<div class="auth-card"><h2 style="color:#c0392b">Erro na configuração do Firebase</h2><p style="margin-top:10px;font-size:13px">Verifique as credenciais no código.</p></div>';
-    return;
-  }
-  db=firebase.firestore();auth=firebase.auth();
-  document.getElementById("login-screen").style.display="flex";
-  startAuth();
-});
-</script>
-
-<!-- ================================================================
-     SETUP GUIDE (visible in the HTML source)
-     
-     PASSO A PASSO — CONFIGURAR FIREBASE (10 minutos)
-     
-     1. Acesse https://console.firebase.google.com
-     2. Clique em "Criar projeto" → dê o nome "crm-confeitaria" → Continuar
-     3. Desative o Google Analytics (não precisa) → Criar projeto
-     
-     4. No menu lateral: Authentication → Começar
-        - Em "Método de login" → Google → Ativar → Salvar
-     
-     5. No menu lateral: Firestore Database → Criar banco de dados
-        - Modo de produção → Escolha a região "us-east1" → Ativar
-        - Vá em "Regras" e cole:
-        
-        rules_version = '2';
-        service cloud.firestore {
-          match /databases/{database}/documents {
-            function isAdmin() {
-              return request.auth != null && (
-                !exists(/databases/$(database)/documents/config/main) ||
-                request.auth.token.email in get(/databases/$(database)/documents/config/main).data.authorizedEmails
-              );
-            }
-            match /config/main {
-              allow read: if request.auth != null;
-              allow write: if isAdmin();
-            }
-            match /pendingForms/{doc} {
-              allow create: if request.auth != null;
-              allow read, update, delete: if isAdmin();
-            }
-            match /{collection}/{doc} {
-              allow read, write: if isAdmin();
-            }
-          }
-        }
-     
-     6. No menu lateral: Configurações do projeto (engrenagem)
-        - Role até "Seus apps" → clique em "</>" (Web)
-        - Dê o nome "crm-web" → Registrar app
-        - Copie os valores de apiKey, authDomain, projectId e appId
-     
-     7. Em Authentication → Settings → Domínios autorizados
-        - Adicione seu domínio do Netlify (ex: crm-verve.netlify.app)
-     
-     8. Cole os valores no formulário de configuração do CRM
-        e clique em "Conectar ao Firebase"
-     
-     Pronto! Seus dados ficam no Firebase (nuvem do Google),
-     acessível de qualquer lugar, em tempo real.
-================================================================ -->
-</body>
-</html>
