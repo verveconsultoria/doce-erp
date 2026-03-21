@@ -645,6 +645,11 @@ code{background:var(--cinza-light);padding:1px 5px;border-radius:3px;font-family
     </div>
 
     <div class="settings-panel">
+      <h3 style="font-size:15px;margin-bottom:8px">Verificar cadastros duplicados</h3>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Identifica clientes com telefones semelhantes (mesmo número, DDD ou código de país diferentes) ou mesmo nome cadastrado mais de uma vez.</p>
+      <button onclick="verificarDuplicatas()" class="btn-sm">🔍 Verificar duplicatas</button>
+    </div>
+    <div class="settings-panel">
       <h3 style="font-size:15px;margin-bottom:8px">Migração de dados anteriores</h3>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Se você usava o CRM antes do Firebase (versões anteriores), clique aqui para tentar migrar os dados salvos neste navegador.</p>
       <button onclick="localStorage.removeItem('crm_migrated_to_firebase');checkLocalStorageMigration();" class="btn-sm">🔄 Verificar dados para migrar</button>
@@ -2125,8 +2130,7 @@ async function mesclarDuplicados(){
     base.ocasioes=ocs.filter((o,i,a)=>a.findIndex(x=>x.pessoa===o.pessoa&&x.data===o.data)===i);
     const prods=[...(base.produtos||[]),...(c.produtos||[])];
     base.produtos=[...new Set(prods)];
-    base.notas=(base.notas||"")+(c.notas?"
-"+c.notas:"");
+    base.notas=(base.notas||"")+(c.notas?"\n"+c.notas:"");
   });
 
   try{
@@ -2182,5 +2186,224 @@ async function submitPublicForm(){
     ?"Dados atualizados com sucesso! Obrigada 😊"
     :"Recebemos seu cadastro! Em breve entraremos em contato. 🎂";
 }
+async function signInPublicForm(){
+  try{
+    await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  }catch(e){
+    showToast("Erro ao fazer login: "+e.message,"err");
+  }
+}
 
+/* ================================================================
+   AUTH & INIT (admin mode)
+================================================================ */
 
+window.addEventListener("DOMContentLoaded",async()=>{
+  if(isFormMode){
+    initFirebase(FIREBASE_CONFIG);
+    auth=firebase.auth();db=firebase.firestore();
+    document.getElementById("form-page").style.display="flex";
+    // Load config for branding
+    try{
+      const snap=await db.collection("config").doc("main").get();
+      if(snap.exists){
+        appConfig=snap.data();
+        const n=appConfig.nome;
+        if(n)document.getElementById("fp-conf-nome").textContent=n;
+        if(appConfig.logo){
+          const i=document.getElementById("fp-logo-img");
+          const p=document.getElementById("fp-logo-ph");
+          if(i&&p){i.src=appConfig.logo;i.style.display="block";p.style.display="none";}
+        }
+      }
+    }catch(e){}
+
+    // Auth handler for form mode
+    auth.onAuthStateChanged(user=>{
+      if(!user)return;
+      document.getElementById("fp-step-login").style.display="none";
+      document.getElementById("fp-step-form").style.display="block";
+      const info=document.getElementById("fp-user-info");
+      if(info)info.innerHTML=`<span>✓ Conectado como <strong>${user.displayName||user.email}</strong></span>`;
+      const emailEl=document.getElementById("fp-email");
+      if(emailEl&&!emailEl.value)emailEl.value=user.email||"";
+      // Load produtos for interest selection
+      renderFpProdutos([]);
+    });
+    return;
+  }
+
+  // Admin mode
+  if(!initFirebase(FIREBASE_CONFIG)){
+    document.getElementById("setup-screen").style.display="flex";
+    return;
+  }
+
+  auth.onAuthStateChanged(async user=>{
+    if(!user){
+      document.getElementById("login-screen").style.display="flex";
+      document.getElementById("main-app").style.display="none";
+      return;
+    }
+    loadMeta();
+    currentUser=user;
+    const av=document.getElementById("user-avatar");
+    if(av&&user.photoURL){av.src=user.photoURL;av.style.display="block";}
+    document.getElementById("login-screen").style.display="none";
+    document.getElementById("main-app").style.display="block";
+    applyConfig();
+    startListeners();
+    renderDashboard();
+    setTimeout(checkLocalStorageMigration,2000);
+  });
+});
+
+/* ================================================================
+   VERIFICAR DUPLICATAS
+================================================================ */
+function normalizeTel(tel){
+  if(!tel)return"";
+  const d=tel.replace(/\D/g,"");
+  // Remove country code 55 and leading zeros, keep last 9 digits
+  if(d.length>=11&&d.startsWith("55"))return d.slice(-9);
+  if(d.length>=10)return d.slice(-9);
+  return d;
+}
+
+function normalizeName(nome){
+  return(nome||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
+}
+
+function verificarDuplicatas(){
+  if(!allClients.length){showToast("Nenhum cliente carregado.","err");return;}
+
+  const grupos=[];
+  const vistos=new Set();
+
+  // Group by normalized phone (last 9 digits)
+  const porTel={};
+  allClients.forEach(c=>{
+    const norm=normalizeTel(c.telefone);
+    if(!norm)return;
+    if(!porTel[norm])porTel[norm]=[];
+    porTel[norm].push(c);
+  });
+  Object.values(porTel).filter(g=>g.length>1).forEach(g=>{
+    const ids=g.map(c=>c.id).sort().join(",");
+    if(!vistos.has(ids)){vistos.add(ids);grupos.push({tipo:"telefone",clientes:g});}
+  });
+
+  // Group by normalized name similarity
+  const porNome={};
+  allClients.forEach(c=>{
+    const norm=normalizeName(c.nome);
+    if(!norm)return;
+    // Use first word + last word as key
+    const parts=norm.split(" ").filter(Boolean);
+    const key=parts.length>=2?parts[0]+"_"+parts[parts.length-1]:parts[0];
+    if(!porNome[key])porNome[key]=[];
+    porNome[key].push(c);
+  });
+  Object.values(porNome).filter(g=>g.length>1).forEach(g=>{
+    const ids=g.map(c=>c.id).sort().join(",");
+    if(!vistos.has(ids)){vistos.add(ids);grupos.push({tipo:"nome",clientes:g});}
+  });
+
+  if(!grupos.length){
+    showToast("✓ Nenhum duplicado encontrado!");
+    return;
+  }
+
+  // Show modal with results
+  const body=`
+    <div class="info-box" style="margin-bottom:14px">
+      Encontramos <strong>${grupos.length} grupo(s)</strong> com possíveis duplicatas. Revise e decida o que fazer com cada um.
+    </div>
+    <div id="dup-grupos">
+      ${grupos.map((g,gi)=>{
+        const tipoLabel=g.tipo==="telefone"?"📞 Mesmo telefone":"👤 Nome similar";
+        const tipoColor=g.tipo==="telefone"?"var(--rosa)":"var(--amarelo)";
+        return`<div class="data-card" style="margin-bottom:12px;border-left:3px solid ${tipoColor}">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:${tipoColor};margin-bottom:8px">${tipoLabel}</div>
+          ${g.clientes.map(c=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--cinza-border);font-size:13px">
+            <div>
+              <span style="font-weight:500">${esc(c.nome)}</span>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${esc(c.telefone||"sem tel")}</span>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:8px">${esc(c.email||"")}</span>
+            </div>
+            <span class="badge" style="background:${({"Novo lead":"#e3f2fd","Cliente ativo":"var(--verde-light)","Contato feito":"#fff8e1"})[c.pipeline]||"var(--cinza-light)"};color:var(--text-muted)">${esc(c.pipeline||"")}</span>
+          </div>`).join("")}
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <button onclick="mesclarGrupo(${gi})" class="btn-sm btn-primary" style="font-size:12px">Mesclar em um</button>
+            <button onclick="ignorarGrupo(${gi})" class="btn-sm" style="font-size:12px">Ignorar</button>
+          </div>
+        </div>`;}).join("")}
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button onclick="closeModal()">Fechar</button>
+    </div>`;
+
+  // Store grupos globally for action buttons
+  window._dupGrupos=grupos;
+  document.getElementById("modal-title").textContent="Duplicatas encontradas";
+  document.getElementById("modal-body").innerHTML=body;
+  document.getElementById("modal").style.display="flex";
+}
+
+async function mesclarGrupo(gi){
+  const g=window._dupGrupos[gi];
+  if(!g)return;
+  if(!confirm(`Mesclar ${g.clientes.length} cadastros em um? O mais completo será mantido.`))return;
+
+  // Pick the most complete as base (most fields filled)
+  const score=c=>[c.email,c.aniversario,c.origem,(c.ocasioes||[]).length,(c.produtos||[]).length].filter(Boolean).length;
+  const sorted=[...g.clientes].sort((a,b)=>score(b)-score(a));
+  const base={...sorted[0]};
+
+  sorted.slice(1).forEach(c=>{
+    if(!base.email&&c.email)base.email=c.email;
+    if(!base.aniversario&&c.aniversario)base.aniversario=c.aniversario;
+    if(!base.origem&&c.origem)base.origem=c.origem;
+    if(!base.telefone&&c.telefone)base.telefone=c.telefone;
+    // Normalize phone: keep the cleaner format (11 digits without country code)
+    const bt=normalizeTel(base.telefone);const ct=normalizeTel(c.telefone);
+    if(bt===ct&&c.telefone&&c.telefone.replace(/\D/g,"").length<base.telefone.replace(/\D/g,"").length){
+      base.telefone=c.telefone; // prefer shorter (without 55 prefix)
+    }
+    const ocs=[...(base.ocasioes||[]),...(c.ocasioes||[])];
+    base.ocasioes=ocs.filter((o,i,a)=>a.findIndex(x=>x.pessoa===o.pessoa&&x.data===o.data)===i);
+    const prods=[...(base.produtos||[]),...(c.produtos||[])];
+    base.produtos=[...new Set(prods)];
+    if(c.notas)base.notas=(base.notas||"")+(base.notas?"\n":"")+c.notas;
+  });
+
+  try{
+    await db.collection("clients").doc(base.id).set(base);
+    for(const c of sorted.slice(1)){
+      await db.collection("clients").doc(c.id).delete();
+    }
+    // Remove from grupos list
+    window._dupGrupos.splice(gi,1);
+    showToast("✓ Cadastros mesclados!");
+    // Refresh modal
+    if(window._dupGrupos.length>0)verificarDuplicatas();
+    else closeModal();
+  }catch(e){showToast("Erro: "+e.message,"err");}
+}
+
+function ignorarGrupo(gi){
+  window._dupGrupos.splice(gi,1);
+  if(window._dupGrupos.length>0)verificarDuplicatas();
+  else{closeModal();showToast("Revisão concluída!");}
+}
+
+function signIn(){
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(e=>{const el=document.getElementById("login-err");if(el)el.textContent=e.message;});
+}
+function signOut(){
+  auth.signOut().then(()=>{location.reload();});
+}
+</script>
+</body>
+</html>
