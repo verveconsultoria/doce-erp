@@ -2397,6 +2397,55 @@ function ignorarGrupo(gi){
   else{closeModal();showToast("Revisão concluída!");}
 }
 
+function checkLocalStorageMigration(){
+  const oldClients=JSON.parse(localStorage.getItem("crm_clients")||"[]");
+  const oldProdutos=JSON.parse(localStorage.getItem("crm_produtos")||"[]");
+  const oldEmpresas=JSON.parse(localStorage.getItem("crm_empresas")||"[]");
+  const alreadyMigrated=localStorage.getItem("crm_migrated_to_firebase");
+  if(alreadyMigrated)return;
+  const total=oldClients.length+oldProdutos.length+oldEmpresas.length;
+  if(total===0)return;
+  if(allClients.length>0)return;
+  showMigrationBanner(oldClients,oldProdutos,oldEmpresas);
+}
+
+function showMigrationBanner(clients,produtos,empresas){
+  const total=clients.length+produtos.length+empresas.length;
+  const banner=document.createElement("div");
+  banner.id="migration-banner";
+  banner.style.cssText="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--white);border:1px solid var(--cinza-border);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow-md);z-index:9000;max-width:480px;width:90%;font-family:'DM Sans',sans-serif";
+  banner.innerHTML=`<div style="font-weight:500;font-size:14px;margin-bottom:6px;color:var(--rosa)">📦 Dados encontrados no histórico local</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Encontramos <strong>${clients.length} cliente(s)</strong>, <strong>${produtos.length} produto(s)</strong> e <strong>${empresas.length} empresa(s)</strong>.</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">⚠️ Se a migração falhar, abra o Console (F12) para ver o erro.</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="migrateLocalStorage()" style="flex:1;background:var(--rosa);color:#fff;border:none;border-radius:var(--radius-sm);padding:8px;font-size:13px;cursor:pointer;font-family:inherit">✓ Migrar agora</button>
+      <button onclick="dismissMigration()" style="flex:1;background:transparent;border:1px solid var(--cinza-border);border-radius:var(--radius-sm);padding:8px;font-size:13px;cursor:pointer;font-family:inherit">Fechar</button>
+    </div>`;
+  document.body.appendChild(banner);
+}
+
+async function migrateLocalStorage(){
+  const banner=document.getElementById("migration-banner");
+  if(banner)banner.innerHTML=`<div style="text-align:center;padding:8px;font-size:13px">Migrando...</div>`;
+  const oldClients=JSON.parse(localStorage.getItem("crm_clients")||"[]");
+  const oldProdutos=JSON.parse(localStorage.getItem("crm_produtos")||"[]");
+  const oldEmpresas=JSON.parse(localStorage.getItem("crm_empresas")||"[]");
+  let ok=0,fail=0,failMsgs=[];
+  const clean=obj=>JSON.parse(JSON.stringify(obj,(k,v)=>v===undefined?"":v));
+  for(const c of oldClients){
+    try{const id=String(c.id||uid()).replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();await db.collection("clients").doc(id).set(clean({...c,id,ocasioes:Array.isArray(c.ocasioes)?c.ocasioes:[],produtos:Array.isArray(c.produtos)?c.produtos:[],preferencias:Array.isArray(c.preferencias)?c.preferencias:[],msgStatus:c.msgStatus||{},criadoEm:c.criadoEm||new Date().toISOString().slice(0,10)}));ok++;}catch(e){fail++;failMsgs.push("Cliente "+c.nome+": "+e.message);}
+  }
+  for(const p of oldProdutos){try{const id=String(p.id||uid()).replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();await db.collection("produtos").doc(id).set(clean({...p,id}));ok++;}catch(e){fail++;failMsgs.push("Produto "+p.nome+": "+e.message);}}
+  for(const e of oldEmpresas){try{const id=String(e.id||uid()).replace(/[^a-zA-Z0-9_-]/g,"").slice(0,100)||uid();await db.collection("empresas").doc(id).set(clean({...e,id,exposicoes:Array.isArray(e.exposicoes)?e.exposicoes:[]}));ok++;}catch(e2){fail++;failMsgs.push("Empresa "+e.nome+": "+e2.message);}}
+  localStorage.setItem("crm_migrated_to_firebase","1");
+  if(banner)banner.remove();
+  if(fail===0)showToast(`✓ ${ok} registro(s) migrado(s)!`);
+  else showToast(`${ok} migrado(s), ${fail} com erro.`,"err");
+}
+
+function dismissMigration(){const b=document.getElementById("migration-banner");if(b)b.remove();}
+function resetMigration(){localStorage.removeItem("crm_migrated_to_firebase");checkLocalStorageMigration();}
+
 function signIn(){
   auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
     .catch(e=>{const el=document.getElementById("login-err");if(el)el.textContent=e.message;});
