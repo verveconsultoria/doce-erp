@@ -2258,6 +2258,257 @@ window.addEventListener("DOMContentLoaded",async()=>{
   });
 });
 
+function buildDispatchList(){
+  // Coleta todos os eventos dos clientes dentro do per\u00edodo
+  const periodo=parseInt(document.getElementById("disp-periodo")?.value||"7");
+  const soHoje=document.getElementById("disp-periodo")?.value==="hoje";
+  const dias=soHoje?0:periodo;
+  const events=[];
+
+  allClients.forEach(c=>{
+    // Anivers\u00e1rio do cliente
+    if(c.aniversario){
+      const d=daysTill(c.aniversario);
+      if(d!==null&&d<=(soHoje?0:dias)&&d>=0){
+        events.push({
+          clienteId:c.id,nome:c.nome,telefone:c.telefone,
+          tipo:"aniversario_cliente",tipoLabel:"\ud83c\udf82 Anivers\u00e1rio",
+          diasAte:d,pipeline:c.pipeline,
+          msgKey:"disp_aniv_"+c.id,
+          sent:!!(c.msgStatus?.["disp_aniv_"+c.id]),
+          defaultTemplate:"t1"
+        });
+      }
+    }
+    // Ocasi\u00f5es especiais
+    (c.ocasioes||[]).forEach((o,i)=>{
+      if(!o.data)return;
+      const d=daysTill(o.data);
+      if(d!==null&&d<=(soHoje?0:dias)&&d>=0){
+        const emoji=emojiOcasiao(o.ocasiao);
+        events.push({
+          clienteId:c.id,nome:c.nome,telefone:c.telefone,
+          tipo:"ocasiao_"+i,tipoLabel:emoji+" "+o.ocasiao+" de "+o.pessoa,
+          diasAte:d,pipeline:c.pipeline,
+          pessoa:o.pessoa,relacao:o.relacao,
+          msgKey:"disp_oc_"+c.id+"_"+i,
+          sent:!!(c.msgStatus?.["disp_oc_"+c.id+"_"+i]),
+          defaultTemplate:o.ocasiao==="Anivers\u00e1rio"?"t3":"t2"
+        });
+      }
+    });
+  });
+
+  // Ordena por dias, depois por nome
+  events.sort((a,b)=>a.diasAte-b.diasAte||a.nome.localeCompare(b.nome));
+  return events;
+}
+
+function renderDisparos(){
+  const soHoje=document.getElementById("disp-periodo")?.value==="hoje";
+  const soPendentes=document.getElementById("disp-so-pendentes")?.checked;
+  let events=buildDispatchList();
+  const total=events.length;
+  const pendentes=events.filter(e=>!e.sent).length;
+
+  // Update badge
+  const badge=document.getElementById("disparos-badge");
+  if(badge)badge.innerHTML=pendentes>0?`<span class="pending-badge">${pendentes}</span>`:"";
+
+  if(soPendentes)events=events.filter(e=>!e.sent);
+
+  const list=document.getElementById("disp-list");
+  const summary=document.getElementById("disp-summary");
+  if(!list)return;
+
+  // Summary cards
+  if(summary){
+    const hoje=events.filter(e=>e.diasAte===0).length;
+    const amanha=events.filter(e=>e.diasAte===1).length;
+    const semana=events.filter(e=>e.diasAte<=7).length;
+    summary.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:4px">
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Hoje</div>
+        <div class="metric-value" style="color:var(--rosa);font-size:22px">${events.filter(e=>e.diasAte===0).length}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Amanh\u00e3</div>
+        <div class="metric-value" style="font-size:22px">${events.filter(e=>e.diasAte===1).length}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Esta semana</div>
+        <div class="metric-value" style="color:var(--amarelo);font-size:22px">${events.filter(e=>e.diasAte<=7).length}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Pendentes</div>
+        <div class="metric-value" style="color:var(--rosa);font-size:22px">${pendentes}</div>
+      </div>
+      <div class="metric-card" style="padding:10px 14px">
+        <div class="metric-label">Enviados</div>
+        <div class="metric-value" style="color:var(--verde);font-size:22px">${total-pendentes}</div>
+      </div>
+    </div>`;
+  }
+
+  if(events.length===0){
+    list.innerHTML=`<div class="empty">${soPendentes?"Nenhum disparo pendente no per\u00edodo \ud83c\udf89":"Nenhuma data especial no per\u00edodo selecionado"}</div>`;
+    return;
+  }
+
+  // Agrupar por dia
+  const byDay={};
+  events.forEach(e=>{
+    const key=e.diasAte===0?"hoje":e.diasAte===1?"amanha":"d"+e.diasAte;
+    if(!byDay[key])byDay[key]={label:e.diasAte===0?"Hoje":e.diasAte===1?"Amanh\u00e3":"Em "+e.diasAte+" dias",dias:e.diasAte,items:[]};
+    byDay[key].items.push(e);
+  });
+
+  let html="";
+  Object.values(byDay).sort((a,b)=>a.dias-b.dias).forEach(day=>{
+    const dayColor=day.dias===0?"var(--rosa)":day.dias===1?"var(--amarelo)":"var(--verde)";
+    html+=`<div class="disp-day-header" style="color:${dayColor}">
+      <strong>${day.label}</strong> <span style="font-size:11px;font-weight:400">${day.items.length} cliente(s)</span>
+      <span></span>
+    </div>`;
+
+    day.items.forEach(e=>{
+      const cls=e.diasAte===0?"disp-urgente":e.diasAte<=7?"disp-proximo":"disp-ok";
+      const pc=PIPELINE_COLORS[e.pipeline]||"#888";
+      const templateOpts=allTemplates.map(t=>`<option value="${t.id}"${t.id===e.defaultTemplate?" selected":""}>${esc(t.titulo)}</option>`).join("");
+      const waMsg=buildWAMsg(e);
+      const waUrl=e.telefone?`https://wa.me/55${e.telefone.replace(/\\D/g,"")}?text=${encodeURIComponent(waMsg)}`:null;
+
+      html+=`<div class="disp-card ${cls}${e.sent?" sent":""}" id="dcard-${esc(e.msgKey)}">
+        <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-weight:500;font-size:14px">${esc(e.nome)}</span>
+              <span class="disp-tipo-badge ${cls}">${e.tipoLabel}</span>
+              <span class="badge" style="background:${pc}22;color:${pc}">${e.pipeline}</span>
+              ${e.sent?`<span class="badge" style="background:var(--verde-light);color:var(--verde)">\u2713 Enviado</span>`:""}
+            </div>
+            ${e.telefone?`<div style="font-size:12px;color:var(--text-muted)">${esc(e.telefone)}</div>`:""}
+            <div style="margin-top:8px">
+              <select class="template-select" id="tsel-${esc(e.msgKey)}" onchange="updateWALink('${esc(e.msgKey)}','${e.clienteId}','${esc(e.telefone||"")}','${esc(e.pessoa||"")}')">
+                ${templateOpts}
+              </select>
+            </div>
+            <div style="margin-top:6px;font-size:12px;color:var(--text-muted);background:var(--cinza-light);border-radius:var(--radius-sm);padding:8px 10px;line-height:1.5" id="prev-${esc(e.msgKey)}">${esc(waMsg)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end">
+            ${waUrl?`<a href="${esc(waUrl)}" target="_blank" class="wa-btn" id="walink-${esc(e.msgKey)}" onclick="autoMarkSent('${esc(e.msgKey)}','${e.clienteId}')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+              Abrir WhatsApp
+            </a>`:`<span style="font-size:12px;color:var(--text-muted)">Sem telefone cadastrado</span>`}
+            <button class="sent-btn ${e.sent?"done":"pending"}" id="sbtn-${esc(e.msgKey)}" onclick="toggleDispSent('${esc(e.msgKey)}','${e.clienteId}',this)">
+              ${e.sent?"\u2713 Enviado":"\u25cb Marcar enviado"}
+            </button>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+
+  list.innerHTML=html;
+}
+
+function buildWAMsg(e){
+  // Pega o template selecionado (ou o default)
+  const selEl=document.getElementById("tsel-"+e.msgKey);
+  const tId=selEl?selEl.value:e.defaultTemplate;
+  const template=allTemplates.find(t=>t.id===tId)||allTemplates[0];
+  if(!template)return"";
+  const primeiroNome=e.nome.split(" ")[0];
+  return template.mensagem
+    .replace(/\\[Nome\\]/g,primeiroNome)
+    .replace(/\\[NomePessoa\\]/g,e.pessoa||"algu\u00e9m especial")
+    .replace(/\\[Confeitaria\\]/g,appConfig.nome||"nossa confeitaria");
+}
+
+function updateWALink(msgKey,clienteId,telefone,pessoa){
+  const selEl=document.getElementById("tsel-"+msgKey);
+  const tId=selEl?selEl.value:"";
+  const template=allTemplates.find(t=>t.id===tId)||allTemplates[0];
+  if(!template)return;
+  const c=allClients.find(x=>x.id===clienteId);
+  const primeiroNome=c?c.nome.split(" ")[0]:"";
+  const msg=template.mensagem
+    .replace(/\\[Nome\\]/g,primeiroNome)
+    .replace(/\\[NomePessoa\\]/g,pessoa||"algu\u00e9m especial")
+    .replace(/\\[Confeitaria\\]/g,appConfig.nome||"nossa confeitaria");
+
+  const prev=document.getElementById("prev-"+msgKey);
+  if(prev)prev.textContent=msg;
+
+  const waLink=document.getElementById("walink-"+msgKey);
+  if(waLink&&telefone){
+    waLink.href="https://wa.me/55"+telefone.replace(/\\D/g,"")+"?text="+encodeURIComponent(msg);
+  }
+}
+
+async function autoMarkSent(msgKey,clienteId){
+  // Marca como enviado automaticamente ao clicar em Abrir WhatsApp
+  const c=allClients.find(x=>x.id===clienteId);
+  if(!c)return;
+  const msgStatus={...(c.msgStatus||{}),[msgKey]:true};
+  await db.collection("clients").doc(clienteId).update({msgStatus});
+  // Update UI without full re-render
+  const card=document.getElementById("dcard-"+msgKey);
+  const btn=document.getElementById("sbtn-"+msgKey);
+  if(card)card.classList.add("sent");
+  if(btn){btn.className="sent-btn done";btn.textContent="\u2713 Enviado";}
+  // Update badge
+  setTimeout(()=>{
+    const pending=buildDispatchList().filter(e=>!e.sent).length;
+    const badge=document.getElementById("disparos-badge");
+    if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
+  },500);
+}
+
+async function toggleDispSent(msgKey,clienteId,btn){
+  const c=allClients.find(x=>x.id===clienteId);
+  if(!c)return;
+  const current=!!(c.msgStatus?.[msgKey]);
+  const msgStatus={...(c.msgStatus||{}),[msgKey]:!current};
+  await db.collection("clients").doc(clienteId).update({msgStatus});
+  btn.className="sent-btn "+(!current?"done":"pending");
+  btn.textContent=!current?"\u2713 Enviado":"\u25cb Marcar enviado";
+  const card=document.getElementById("dcard-"+msgKey);
+  if(card){if(!current)card.classList.add("sent");else card.classList.remove("sent");}
+  setTimeout(()=>{
+    const pending=buildDispatchList().filter(e=>!e.sent).length;
+    const badge=document.getElementById("disparos-badge");
+    if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
+  },300);
+}
+
+async function markAllSent(){
+  const events=buildDispatchList().filter(e=>!e.sent);
+  if(!events.length)return showToast("Nenhum disparo pendente.");
+  if(!confirm(`Marcar ${events.length} disparo(s) como enviado?`))return;
+  // Group by client to minimize writes
+  const byClient={};
+  events.forEach(e=>{
+    if(!byClient[e.clienteId])byClient[e.clienteId]={clienteId:e.clienteId,keys:[]};
+    byClient[e.clienteId].keys.push(e.msgKey);
+  });
+  for(const {clienteId,keys} of Object.values(byClient)){
+    const c=allClients.find(x=>x.id===clienteId);
+    if(!c)continue;
+    const msgStatus={...(c.msgStatus||{})};
+    keys.forEach(k=>msgStatus[k]=true);
+    await db.collection("clients").doc(clienteId).update({msgStatus});
+  }
+  showToast(`\u2713 ${events.length} disparos marcados como enviados!`);
+  renderDisparos();
+}
+
+// Update disparos badge whenever clients change
+function updateDisparosBadge(){
+  const pending=buildDispatchList().filter(e=>!e.sent).length;
+  const badge=document.getElementById("disparos-badge");
+  if(badge)badge.innerHTML=pending>0?`<span class="pending-badge">${pending}</span>`:"";
+}
 /* ================================================================
    VERIFICAR DUPLICATAS
 ================================================================ */
@@ -2339,7 +2590,8 @@ function verificarDuplicatas(){
           </div>
         </div>`;}).join("")}
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
+      <button onclick="mesclarTodosDuplicados()" class="btn-primary btn-sm" style="background:var(--amarelo);border-color:var(--amarelo)">⚡ Mesclar todos automaticamente</button>
       <button onclick="closeModal()">Fechar</button>
     </div>`;
 
@@ -2348,6 +2600,41 @@ function verificarDuplicatas(){
   document.getElementById("modal-title").textContent="Duplicatas encontradas";
   document.getElementById("modal-body").innerHTML=body;
   document.getElementById("modal").style.display="flex";
+}
+
+async function mesclarTodosDuplicados(){
+  const grupos=window._dupGrupos||[];
+  if(!grupos.length)return;
+  if(!confirm(`Mesclar automaticamente todos os ${grupos.length} grupo(s) encontrados? O cadastro mais completo de cada grupo será mantido.`))return;
+
+  let totalMesclados=0, erros=0;
+  for(let gi=grupos.length-1;gi>=0;gi--){
+    const g=grupos[gi];
+    const score=c=>[c.email,c.aniversario,c.origem,(c.ocasioes||[]).length,(c.produtos||[]).length].filter(Boolean).length;
+    const sorted=[...g.clientes].sort((a,b)=>score(b)-score(a));
+    const base={...sorted[0]};
+    sorted.slice(1).forEach(c=>{
+      if(!base.email&&c.email)base.email=c.email;
+      if(!base.aniversario&&c.aniversario)base.aniversario=c.aniversario;
+      if(!base.origem&&c.origem)base.origem=c.origem;
+      if(!base.telefone&&c.telefone)base.telefone=c.telefone;
+      const bt=normalizeTel(base.telefone);const ct=normalizeTel(c.telefone);
+      if(bt===ct&&c.telefone&&c.telefone.replace(/\D/g,"").length<(base.telefone||"").replace(/\D/g,"").length)base.telefone=c.telefone;
+      const ocs=[...(base.ocasioes||[]),...(c.ocasioes||[])];
+      base.ocasioes=ocs.filter((o,i,a)=>a.findIndex(x=>x.pessoa===o.pessoa&&x.data===o.data)===i);
+      const prods=[...(base.produtos||[]),...(c.produtos||[])];
+      base.produtos=[...new Set(prods)];
+      if(c.notas)base.notas=(base.notas||"")+(base.notas?"\n":"")+c.notas;
+    });
+    try{
+      await db.collection("clients").doc(base.id).set(base);
+      for(const c of sorted.slice(1))await db.collection("clients").doc(c.id).delete();
+      totalMesclados+=sorted.length;
+    }catch(e){erros++;}
+  }
+  window._dupGrupos=[];
+  closeModal();
+  showToast(`✓ ${totalMesclados} cadastros mesclados em ${grupos.length} registro(s)!${erros?` (${erros} erro(s))`:""}`)
 }
 
 async function mesclarGrupo(gi){
